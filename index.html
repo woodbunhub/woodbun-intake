@@ -161,6 +161,9 @@ body.locked #login{display:flex}
 #mview .mv-prev{left:12px}
 #mview .mv-next{right:12px}
 #mview .mv-btm{padding:12px 20px;display:flex;gap:10px;justify-content:center}
+.thumbs{display:flex;gap:6px}
+.prow-item img,.prow-item .noref{width:56px;height:56px}
+img.zoomable,#prodHead img{cursor:zoom-in}
 .fabwrap{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--panel);flex-direction:column;gap:8px}
 .fabwrap .fw-title{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .fabwrap .fw-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
@@ -168,10 +171,8 @@ body.locked #login{display:flex}
 </head>
 <body class="locked">
 <div id="login"><div class="logincard">
-  <h1>Woodbun — Image Intake</h1>
-  <p>Enter your access code. Your code decides what you see: shoot, edit, or admin.</p>
-  <input id="pw" type="password" placeholder="Access code" autocomplete="off">
-  <div class="err" id="pwErr">Not a valid code. Check with Mritunjay.</div>
+  <input id="pw" type="password" placeholder="Enter access code" autocomplete="off">
+  <div class="err" id="pwErr">Not a valid code.</div>
   <button class="act" id="pwGo">Enter</button>
 </div></div>
 <div class="wrap">
@@ -216,7 +217,7 @@ body.locked #login{display:flex}
     <span class="path none" id="mastPath">Not set — choose “01_MASTERS”. Needed to approve.</span>
     <button class="small" id="pickMast">Choose folder</button>
   </div>
-  <div id="prodHead"><img id="phImg" alt=""><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div></div></div>
+  <div id="prodHead"><img id="phImg" alt=""><img id="phOri" alt="" style="display:none"><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div></div></div>
   <div class="hint" style="margin-top:8px" id="cfgNote">Loading register…</div>
 </div>
 
@@ -724,8 +725,30 @@ async function updateProdHead(){
   $('phId').textContent=id;
   $('phMsg').textContent=S.flagMsg||'';
   const u=S.root?await findRef(id):null;
-  $('phImg').style.display=u?'block':'none'; if(u)$('phImg').src=u;
+  $('phImg').style.display=u?'block':'none';
+  if(u){ $('phImg').src=u; $('phImg').onclick=()=>lightbox(u, id+' — reference',''); }
+  const o=orientationRef(id);
+  $('phOri').style.display=o?'block':'none';
+  if(o){ $('phOri').src=o.src; $('phOri').onerror=()=>{$('phOri').style.display='none';};
+         $('phOri').onclick=()=>lightbox(o.src, o.t,''); }
   $('prodHead').style.display='flex';
+}
+function orientationRef(pidStr){
+  if(/(^|-)corner(-|$)/.test(pidStr)) return {src:'refs/orientation-corner.jpg', t:'Corner sofa — LHS vs RHS'};
+  if(/(^|-)lounger(-|$)/.test(pidStr)) return {src:'refs/orientation-lounger.jpg', t:'Lounger sofa — LHS vs RHS'};
+  return null;
+}
+function thumbHtml(pidStr,u){
+  const o=orientationRef(pidStr);
+  let h='<div class="thumbs">';
+  h+= u ? '<img class="zoomable" data-t="'+pidStr+' — reference" src="'+u+'">' : '<div class="noref">no ref</div>';
+  if(o) h+='<img class="zoomable" data-t="'+o.t+'" src="'+o.src+'" onerror="this.style.display=&quot;none&quot;">';
+  h+='</div>'; return h;
+}
+function wireZoom(container){
+  container.querySelectorAll('img.zoomable').forEach(im=>{
+    im.onclick=e=>{e.stopPropagation(); lightbox(im.src, im.dataset.t||'', '');};
+  });
 }
 let PTAB='new';
 $('ptNew').onclick=()=>{PTAB='new';$('ptNew').classList.add('on');$('ptFix').classList.remove('on');buildPanel();};
@@ -744,12 +767,13 @@ async function buildPanel(){
       const n=Object.keys(notes.comments||{}).length;
       const u=await findRef(it.pid);
       const d=document.createElement('div'); d.className='prow-item';
-      d.innerHTML=(u?'<img src="'+u+'">':'<div class="noref">no ref</div>')+
+      d.innerHTML=thumbHtml(it.pid,u)+
         '<div class="grow"><div class="pi-id">'+it.pid+'</div><div class="pi-meta">'+it.cls+' · '+it.fab+(notes.message?' — '+notes.message:'')+(n?' — '+n+' image(s) commented':'')+'</div></div>'+
         '<button class="small">Open</button>';
       d.querySelector('button').onclick=()=>openFlagged(it,notes);
       L.appendChild(d);
     }
+    wireZoom(L);
     return;
   }
   const list=S.products.filter(p=>done.indexOf(p.id)<0);
@@ -764,7 +788,7 @@ async function buildPanel(){
     if(nR)badges+='<span class="bdg rev">'+nR+' in review</span>';
     if(nF)badges+='<span class="bdg rev">'+nF+' to fix</span>';
     if(nA)badges+='<span class="bdg ok">'+nA+' approved</span>';
-    d.innerHTML=(u?'<img src="'+u+'">':'<div class="noref">no ref</div>')+
+    d.innerHTML=thumbHtml(p.id,u)+
       '<div class="grow"><div class="pi-id">'+p.id+'</div><div class="pi-meta">'+(p.class||'')+'</div><div class="badges">'+badges+'</div></div>'+
       (ADMIN?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button><button class="small" data-a="done">✓ Complete</button>':'')+
       '<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>';
@@ -775,6 +799,7 @@ async function buildPanel(){
     }
     L.appendChild(d);
   }
+  wireZoom(L);
 }
 function startProduct(p){
   if(p.class&&CLASSES[p.class]){S.cls=p.class;$('cls').value=p.class;renderProducts();}
@@ -803,12 +828,13 @@ async function buildMasters(){
     const vs=byPid[pidk];
     const u=S.root?await findRef(pidk):null;
     const d=document.createElement('div'); d.className='prow-item';
-    d.innerHTML=(u?'<img src="'+u+'">':'<div class="noref">no ref</div>')+
+    d.innerHTML=thumbHtml(pidk,u)+
       '<div class="grow"><div class="pi-id">'+pidk+'</div><div class="pi-meta">'+vs[0].cls+' · '+vs.map(v=>v.fab).join(', ')+'</div></div>'+
       '<button class="small">View</button>';
     d.querySelector('button').onclick=()=>openViewer(pidk);
     L.appendChild(d);
   }
+  wireZoom(L);
 }
 let MV={flat:[],i:0,open:false};
 async function openViewer(startPid){
