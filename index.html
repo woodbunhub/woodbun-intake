@@ -384,6 +384,7 @@ function applyRole(r){
   $('mOut').classList.remove('hide');
   loadRegister();
   setMode(r==='shoot' ? 'shoot' : 'panel');
+  offerReconnect();
 }
 async function tryLogin(){
   const h=await sha256($('pw').value.trim());
@@ -560,22 +561,57 @@ async function flagItem(it){              // _TEMP -> _FLAGGED, both inside inta
 }
 async function writeJSON(dirHandle,name,obj){const h=await dirHandle.getFileHandle(name,{create:true});const w=await h.createWritable();await w.write(JSON.stringify(obj,null,2));await w.close();}
 
+/* ---- v6: remembered folder handles (one-click reconnect) ---- */
+function hdb(){return new Promise((res,rej)=>{const r=indexedDB.open('wb_handles',1);
+  r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function hSet(k,v){try{const db=await hdb();await new Promise((res,rej)=>{const t=db.transaction('h','readwrite');t.objectStore('h').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});}catch(e){}}
+async function hGet(k){try{const db=await hdb();return await new Promise((res)=>{const t=db.transaction('h','readonly');const rq=t.objectStore('h').get(k);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>res(null);});}catch(e){return null;}}
+async function ensurePerm(h){ if(!h) return false;
+  const o={mode:'readwrite'};
+  if((await h.queryPermission(o))==='granted') return true;
+  try{ return (await h.requestPermission(o))==='granted'; }catch(e){ return false; }
+}
+function setIntake(h){ S.root=h; $('destPath').textContent=h.name+'  →  _TEMP / <class>/<product>/<variant>/'; $('destPath').classList.remove('none'); }
+function setMasters(h){ S.masters=h; $('mastPath').textContent=h.name+'  →  <class>/<product>/<variant>/'; $('mastPath').classList.remove('none'); }
+
 $('pickDir').onclick=async()=>{
   if(!window.showDirectoryPicker){alert('Use Chrome or Edge — this needs folder access.');return;}
   try{
-    S.root=await window.showDirectoryPicker({mode:'readwrite'});
-    $('destPath').textContent=S.root.name+'  →  _TEMP / <class>/<product>/<variant>/';
-    $('destPath').classList.remove('none');
+    const h=await window.showDirectoryPicker({mode:'readwrite'});
+    setIntake(h); await hSet('intake',h);
     await refreshQueues(); render();
   }catch(e){}
 };
 $('pickMast').onclick=async()=>{
   try{
-    S.masters=await window.showDirectoryPicker({mode:'readwrite'});
-    $('mastPath').textContent=S.masters.name+'  →  <class>/<product>/<variant>/';
-    $('mastPath').classList.remove('none');
+    const h=await window.showDirectoryPicker({mode:'readwrite'});
+    setMasters(h); await hSet('masters',h);
   }catch(e){}
 };
+/* offer reconnect on load, once a role is active */
+async function offerReconnect(){
+  if(!window.showDirectoryPicker) return;
+  const ih=await hGet('intake');
+  if(ih){
+    $('destPath').textContent='↻ Reconnect to “'+ih.name+'” (click)';
+    $('destPath').classList.remove('none'); $('destPath').style.cursor='pointer';
+    $('destPath').onclick=async()=>{
+      if(await ensurePerm(ih)){ setIntake(ih); $('destPath').style.cursor=''; $('destPath').onclick=null; await refreshQueues(); render(); if(S.mode==='panel')buildPanel(); }
+      else { $('destPath').textContent='Reconnect denied — use Choose folder.'; }
+    };
+  }
+  if(ADMIN){
+    const mh=await hGet('masters');
+    if(mh){
+      $('mastPath').textContent='↻ Reconnect to “'+mh.name+'” (click)';
+      $('mastPath').classList.remove('none'); $('mastPath').style.cursor='pointer';
+      $('mastPath').onclick=async()=>{
+        if(await ensurePerm(mh)){ setMasters(mh); $('mastPath').style.cursor=''; $('mastPath').onclick=null; if(S.mode==='masters')buildMasters(); }
+        else { $('mastPath').textContent='Reconnect denied — use Choose folder.'; }
+      };
+    }
+  }
+}
 
 async function refreshQueues(){
   const pend=await walk('_TEMP'), flg=await walk('_FLAGGED');
