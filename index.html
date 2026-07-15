@@ -161,6 +161,9 @@ body.locked #login{display:flex}
 #mview .mv-prev{left:12px}
 #mview .mv-next{right:12px}
 #mview .mv-btm{padding:12px 20px;display:flex;gap:10px;justify-content:center}
+.fabwrap{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--panel);flex-direction:column;gap:8px}
+.fabwrap .fw-title{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.fabwrap .fw-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
 </style>
 </head>
 <body class="locked">
@@ -192,9 +195,11 @@ body.locked #login{display:flex}
   <div class="row">
     <div class="f"><label>1 — Class</label><select id="cls"></select></div>
     <div class="f"><label>2 — Product</label><select id="pidSel" style="min-width:180px"><option value="">— select —</option></select></div>
-    <div class="f fabgrp"><label>3 — Company</label><select id="fCo"><option value="">— select —</option></select></div>
-    <div class="f fabgrp"><label>4 — Catalogue</label><select id="fCat" disabled><option value="">—</option></select></div>
-    <div class="f fabgrp"><label>5 — Colour code</label><select id="fCode" disabled style="min-width:170px"><option value="">—</option></select></div>
+    <div class="fabwrap fabgrp"><div class="fw-title">3 — Upholstery details</div><div class="fw-row">
+      <div class="f"><label>Company</label><select id="fCo"><option value="">— select —</option></select></div>
+      <div class="f"><label>Catalogue</label><select id="fCat" disabled><option value="">—</option></select></div>
+      <div class="f"><label>Colour code</label><select id="fCode" disabled style="min-width:170px"><option value="">—</option></select></div>
+    </div></div>
     <div class="f fingrp"><label>3 — Finish</label><select id="fFin" style="min-width:170px"><option value="">— select —</option></select></div>
     <div class="f"><label>No variant</label><label class="check" style="padding:9px 0"><input type="checkbox" id="noVar"><span style="font-size:13px">Single / none</span></label></div>
     <div class="f"><label id="varLbl">Variant</label><div class="code" id="fabOut">—</div></div>
@@ -495,9 +500,26 @@ function loadRows(R){
 }
 async function loadRegister(){
   let cfg={}; try{ cfg=await (await fetch('config.json')).json(); }catch(e){}
-  const csv=async u=>{const t=await (await fetch(u)).text();const [h,...r]=t.trim().split(/\r?\n/);
-    const k=h.split(',').map(x=>x.trim());
-    return r.map(l=>{const v=l.split(',');const o={};k.forEach((kk,i)=>o[kk]=(v[i]||'').trim());return o;});};
+  function parseCSV(t){
+    const rows=[];let row=[],cur='',q=false;
+    for(let i=0;i<t.length;i++){const c=t[i];
+      if(q){ if(c==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+      else{ if(c==='"') q=true;
+        else if(c===',' ){ row.push(cur); cur=''; }
+        else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+        else if(c==='\r'){ }
+        else cur+=c; } }
+    if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+    return rows;
+  }
+  const csv=async u=>{
+    const t=await (await fetch(u)).text();
+    const rows=parseCSV(t);
+    if(!rows.length) return [];
+    const k=rows[0].map(x=>x.trim());
+    return rows.slice(1).filter(r=>r.some(x=>x&&x.trim()))
+      .map(r=>{const o={};k.forEach((kk,i)=>o[kk]=(r[i]||'').trim());return o;});
+  };
   if(cfg.classesUrl&&cfg.slotsUrl){
     try{
       loadRows({classes:await csv(cfg.classesUrl), slots:await csv(cfg.slotsUrl),
@@ -905,7 +927,6 @@ function render(){
     let h='<div class="n">'+sk.key+(has?' ✓':'')+'</div><div class="t">'+sk.t+'</div><div class="bg">'+sk.bg+'</div>';
     if(note) h+='<div class="note"><b>Redo — comment</b>'+note+'</div>';
     h+='<div class="why">'+sk.why+'</div>';
-    if(sk.opt) h+='<div class="opt-tag">Optional — '+sk.opt+'</div>';
     const rp='refs/'+S.cls+'-'+pad(sk.i)+'.jpg';
     h+='<div class="reflabel">Reference</div><div class="refwrap" data-ref="'+rp+'" data-t="'+sk.t+'" data-w="'+sk.why+'"><img src="'+rp+'" onerror="this.parentNode.previousElementSibling.style.display=\'none\';this.parentNode.style.display=\'none\'"><span class="zoom">Click to enlarge</span></div>';
     if(S.mode==='edit'){
