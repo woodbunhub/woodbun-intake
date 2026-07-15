@@ -204,7 +204,6 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <div class="f fingrp"><label>3 — Finish</label><select id="fFin" style="min-width:170px"><option value="">— select —</option></select></div>
     <div class="f"><label>No variant</label><label class="check" style="padding:9px 0"><input type="checkbox" id="noVar"><span style="font-size:13px">Single / none</span></label></div>
     <div class="f"><label id="varLbl">Variant</label><div class="code" id="fabOut">—</div></div>
-    <div class="f adminonly"><label>Product (free text)</label><input id="pidText" placeholder="dexter"></div>
     <div class="f adminonly"><label>Register</label><button class="small" id="loadReg">Load register file</button></div>
   </div>
   <div class="dest">
@@ -369,7 +368,7 @@ const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const clean=s=>(s||'').toString().trim().toLowerCase().replace(/\s+/g,'-');
 const valid=s=>/^[a-z0-9][a-z0-9-]*$/.test(s);
-const pid=()=>((ADMIN&&$('pidText').value?$('pidText').value:$('pidSel').value)||'').trim();
+const pid=()=>(($('pidSel').value)||'').trim();
 const vtype=()=>{const c=S.classes.find(x=>x.cls===S.cls); return c?c.vtype:'fabric';};
 const fab=()=>{
   if($('noVar').checked) return 'default';
@@ -665,7 +664,7 @@ async function refreshQueues(){
 
 async function openFlagged(it,notes){
   S.cls=it.cls; $('cls').value=it.cls; renderProducts();
-  $('pidSel').value=it.pid; if(ADMIN)$('pidText').value='';
+  $('pidSel').value=it.pid;
   $('noVar').checked = (it.fab==='default');
   if(it.fab==='default'){ /* nothing to restore */ }
   else if(vtype()==='finish'){ $('fFin').value=it.fab; }
@@ -1064,8 +1063,7 @@ $('mPanel').onclick=()=>setMode('panel');
 $('mMast').onclick=()=>setMode('masters');
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 $('pidSel').onchange=()=>{S.notes={};render();};
-$('pidText').oninput=()=>render();
-$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';$('fCo').value='';$('fCo').onchange();$('fFin').value='';$('noVar').checked=false;['dw','dd','dh','sd','sh'].forEach(x=>$(x).value='');if(ADMIN)$('pidText').value='';render();};
+$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';$('fCo').value='';$('fCo').onchange();$('fFin').value='';$('noVar').checked=false;['dw','dd','dh','sd','sh'].forEach(x=>$(x).value='');render();};
 render();
 </script>
 </body>
