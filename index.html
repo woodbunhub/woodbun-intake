@@ -183,6 +183,13 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .ftin{font:600 11px var(--mono);color:var(--muted);min-height:14px;margin-top:3px}
 .dlrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;font:12px var(--mono)}
 .dlrow b{color:var(--muted);font-weight:650;margin-right:3px}
+#varOv{position:fixed;inset:0;background:rgba(43,33,24,.55);display:none;align-items:flex-start;justify-content:center;z-index:97;overflow:auto;padding:40px 16px}
+#varOv.on{display:flex}
+.slot.missing{border-color:var(--terracotta);box-shadow:0 0 0 2px rgba(217,114,42,.35)}
+.bedonly{display:none}
+#doRO .rrow{font:600 13px var(--mono);padding:6px 0;border-bottom:1px dashed var(--border)}
+#doRO .rrow b{display:inline-block;min-width:120px;color:var(--muted)}
+#doRO .rrow .m{color:var(--muted);font-weight:500;font-size:11px;margin-left:8px}
 </style>
 </head>
 <body class="locked">
@@ -214,14 +221,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="row">
     <div class="f"><label>1 — Class</label><select id="cls"></select></div>
     <div class="f"><label>2 — Product</label><select id="pidSel" style="min-width:180px"><option value="">— select —</option></select></div>
-    <div class="fabwrap fabgrp"><div class="fw-title">3 — Upholstery details</div><div class="fw-row">
-      <div class="f"><label>Company</label><select id="fCo"><option value="">— select —</option></select></div>
-      <div class="f"><label>Catalogue</label><select id="fCat" disabled><option value="">—</option></select></div>
-      <div class="f"><label>Colour code</label><select id="fCode" disabled style="min-width:170px"><option value="">—</option></select></div>
-    </div></div>
-    <div class="f fingrp"><label>3 — Finish</label><select id="fFin" style="min-width:170px"><option value="">— select —</option></select></div>
-    <div class="f"><label>No variant</label><label class="check" style="padding:9px 0"><input type="checkbox" id="noVar"><span style="font-size:13px">Single / none</span></label></div>
-    <div class="f"><label id="varLbl">Variant</label><div class="code" id="fabOut">—</div></div>
+    <div class="f editonly"><label>3 — Variant</label><select id="vSel" style="min-width:230px"><option value="">— pick a product first —</option></select></div>
     <div class="f adminonly"><label>Register</label><button class="small" id="loadReg">Load register file</button></div>
   </div>
   <div class="dest">
@@ -281,15 +281,41 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="hint" style="margin-bottom:10px">Everything editors have uploaded, including rework. Click View — ←/→ arrow keys move through images, Esc closes.</div>
   <div class="prow-list" id="ulist"><div class="qempty">Choose your Intake folder first.</div></div></div>
 </div>
+<div id="varOv"><div class="dimscard">
+  <div class="do-head"><div><div class="ph-id" id="vaPid">—</div><div class="pi-meta" id="vaMeta"></div></div><div class="thumbs" id="vaThumbs"></div></div>
+  <div class="row">
+    <div class="fabwrap fabgrp"><div class="fw-title">Add fabric variant</div><div class="fw-row">
+      <div class="f"><label>Company</label><select id="fCo"><option value="">— select —</option></select></div>
+      <div class="f"><label>Catalogue</label><select id="fCat" disabled><option value="">—</option></select></div>
+      <div class="f"><label>Colour code</label><select id="fCode" disabled style="min-width:170px"><option value="">—</option></select></div>
+      <div class="f"><label>&nbsp;</label><button class="small" id="vaAddFab">+ Add</button></div>
+    </div></div>
+    <div class="f fingrp"><label>Add finish variant</label><select id="fFin" style="min-width:170px"><option value="">— select —</option></select></div>
+    <div class="f fingrp"><label>&nbsp;</label><button class="small" id="vaAddFin">+ Add</button></div>
+    <div class="f"><label>&nbsp;</label><button class="small" id="vaAddSingle">Single / no variant</button></div>
+  </div>
+  <div class="hint">Variants added here become the editor's choices for this product. Removing one does NOT delete already-uploaded images.</div>
+  <div class="prow-list" id="vaList"></div>
+  <div class="do-actions"><button class="small" id="vaClose">Close (Esc)</button></div>
+</div></div>
 <div id="dimsOv"><div class="dimscard">
   <div class="do-head"><div><div class="ph-id" id="doPid">—</div><div class="pi-meta" id="doMeta"></div></div><div class="thumbs" id="doThumbs"></div></div>
+  <div id="doForm">
+  <div class="fw-title">Main dims — shown on the website (metres, 2 decimals)</div>
   <div class="row">
     <div class="f dim"><label>Width (m)</label><input id="dw" type="number" step="0.01" placeholder="2.67"><div class="ftin" id="ft_dw"></div></div>
     <div class="f dim"><label>Depth (m)</label><input id="dd" type="number" step="0.01" placeholder="2.03"><div class="ftin" id="ft_dd"></div></div>
     <div class="f dim"><label>Height (m)</label><input id="dh" type="number" step="0.01" placeholder="0.85"><div class="ftin" id="ft_dh"></div></div>
     <div class="f dim sofaonly"><label>Seat depth (m)</label><input id="sd" type="number" step="0.01" placeholder="0.58"><div class="ftin" id="ft_sd"></div></div>
-    <div class="f dim sofaonly"><label>Seat height (m)</label><input id="sh" type="number" step="0.01" placeholder="0.42"><div class="ftin" id="ft_sh"></div></div>
   </div>
+  <div class="fw-title" style="margin-top:8px">Image dims — for dimension images ONLY (never on the website)</div>
+  <div class="row">
+    <div class="f dim sofaonly"><label>Seat height (m)</label><input id="sh" type="number" step="0.01" placeholder="0.42"><div class="ftin" id="ft_sh"></div></div>
+    <div class="f dim sofaonly"><label>F2B depth (m)</label><input id="f2b" type="number" step="0.01" placeholder="0.95"><div class="ftin" id="ft_f2b"></div></div>
+    <div class="f dim bedonly"><label>Platform height (m)</label><input id="plh" type="number" step="0.01" placeholder="0.30"><div class="ftin" id="ft_plh"></div></div>
+  </div>
+  </div>
+  <div id="doRO" style="display:none"></div>
   <div class="hint">W / D / H are the <b>overall footprint</b> — the box the piece occupies. On an L-sofa, depth is how far the L <b>sticks out</b>, not the seat depth. <b>Seat depth</b> = cushion front edge to backrest. <b>Seat height</b> = floor to cushion top. Dimensions belong to the product, not the fabric.</div>
   <div class="status" id="doStatus"></div>
   <div class="do-actions"><button class="act" id="doSave">Save dims</button><button class="small" id="doCancel">Cancel (Esc)</button></div>
@@ -324,7 +350,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div class="bottom">
   <div class="status" id="status">Choose your working folder, then pick a class and product.</div>
   <button class="act ghost" id="reset">Clear</button>
-  <button class="act" id="save" disabled>Save</button>
+  <button class="act" id="save">Save</button>
 </div>
 </div>
 
@@ -408,19 +434,14 @@ const ROLE_HASHES={
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
 let ROLE='', ADMIN=false, STAFF=false;
 async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
-const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{}};
+const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',redone:{},ready:false,_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{}};
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const clean=s=>(s||'').toString().trim().toLowerCase().replace(/\s+/g,'-');
 const valid=s=>/^[a-z0-9][a-z0-9-]*$/.test(s);
 const pid=()=>(($('pidSel').value)||'').trim();
 const vtype=()=>{const c=S.classes.find(x=>x.cls===S.cls); return c?c.vtype:'fabric';};
-const fab=()=>{
-  if($('noVar').checked) return 'default';
-  if(vtype()==='finish') return clean($('fFin').value);
-  const a=$('fCo').value,b=$('fCat').value,c=$('fCode').value;
-  return (a&&b&&c)?clean(a)+'-'+clean(b)+'-'+clean(c):'';
-};
+const fab=()=>(S.mode==='edit'?($('vSel').value||'').trim():'');
 function applyRole(r){
   ROLE=r; ADMIN=(r==='admin'); STAFF=(r==='staff'); sessionStorage.setItem('wb_role',r);
   document.body.classList.remove('locked');
@@ -477,7 +498,6 @@ $('fCat').onchange=()=>{
 };
 $('fCode').onchange=()=>render();
 $('fFin').onchange=()=>render();
-$('noVar').onchange=()=>render();
 $('loadReg').onclick=()=>{
   const i=document.createElement('input'); i.type='file'; i.accept='.xlsx';
   i.onchange=async e=>{
@@ -631,6 +651,7 @@ async function flagItem(it){              // _INBOX -> _INBOX/_rework (editor-vi
   const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
   const dst=await dirFor(S.root,['_INBOX','_rework',it.cls,it.pid,it.fab],true);
   await copyInto(src,dst);
+  try{await dst.removeEntry('READY.json');}catch(e){}
   const parent=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
 }
@@ -711,7 +732,9 @@ async function offerReconnect(){
 
 async function refreshQueues(){
   const pend=await walk('pending'), flg=await walk('rework');
-  $('revPill').textContent=pend.length; $('revPill').style.display=pend.length?'inline-block':'none';
+  for(const it of pend){ try{ await it.handle.getFileHandle('READY.json'); it.ready=true; }catch(e){ it.ready=false; } }
+  const ready=pend.filter(x=>x.ready);
+  $('revPill').textContent=ready.length; $('revPill').style.display=ready.length?'inline-block':'none';
   $('flagPill').textContent=flg.length; $('flagPill').style.display=flg.length?'inline-block':'none';
   $('fixPill').textContent=flg.length; $('fixPill').style.display=flg.length?'inline-block':'none';
   $('pnlPill').textContent=flg.length; $('pnlPill').style.display=flg.length?'inline-block':'none';
@@ -720,8 +743,8 @@ async function refreshQueues(){
        $('dimPill').textContent=dp; $('dimPill').style.display=dp?'inline-block':'none'; }catch(e){}
   if(S.mode==='panel') buildPanel();
 
-  $('revQueue').innerHTML=pend.length?'':'<div class="qempty">Nothing waiting. When the editor uploads, it lands here.</div>';
-  pend.forEach(it=>{
+  $('revQueue').innerHTML=ready.length?'':'<div class="qempty">Nothing waiting. When the editor sends a set for review, it lands here.</div>';
+  ready.forEach(it=>{
     const d=document.createElement('div'); d.className='qitem';
     d.innerHTML='<span class="who">'+it.pid+'</span><span class="meta">'+it.cls+' · '+it.fab+'</span><button class="small">Review</button>';
     d.onclick=()=>openReview(it); $('revQueue').appendChild(d);
@@ -741,15 +764,12 @@ async function refreshQueues(){
 async function openFlagged(it,notes){
   S.cls=it.cls; $('cls').value=it.cls; renderProducts();
   $('pidSel').value=it.pid;
-  $('noVar').checked = (it.fab==='default');
-  if(it.fab==='default'){ /* nothing to restore */ }
-  else if(vtype()==='finish'){ $('fFin').value=it.fab; }
-  else { const bits=it.fab.split('-'); const code=bits.pop(), co=bits.shift(), cat=bits.join('-');
-    $('fCo').value=co; $('fCo').onchange(); $('fCat').value=cat; $('fCat').onchange(); $('fCode').value=code; }
-  S.notes=notes.comments||{}; S.flagMsg=notes.message||''; S.files={}; S.subs={};
-  setMode('edit'); render();
+  S.notes=notes.comments||{}; S.flagMsg=notes.message||''; S.files={}; S.subs={}; S.redone={};
+  setMode('edit');
+  await loadVariantOptions(it.pid, it.fab);
+  await loadExisting();
   $('status').className='status err';
-  $('status').textContent='Re-upload the flagged images, then Save — it goes back for review.';
+  $('status').textContent='Replace the commented images (they save instantly), then Send for review.';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -795,6 +815,110 @@ async function uploadRef(pid){
   };
   i.click();
 }
+/* ---- v11: staff-defined variants (_VARIANTS/<pid>.json) ---- */
+async function readVars(pid){ try{const d=await dirFor(S.root,['_VARIANTS']);const h=await d.getFileHandle(pid+'.json');return JSON.parse(await (await h.getFile()).text());}catch(e){return null;} }
+async function writeVars(pid,obj){ const d=await dirFor(S.root,['_VARIANTS'],true); await writeJSON(d,pid+'.json',obj); }
+let VP=null;
+async function openVars(p){
+  if(!S.root){alert('Choose your Intake folder first.');return;}
+  VP=p; $('vaPid').textContent=p.id; $('vaMeta').textContent=p.class||'';
+  const u=await findRef(p.id); $('vaThumbs').innerHTML=thumbHtml(p.id,u); wireZoom($('vaThumbs'));
+  const vt=(CLASSES[p.class]&&CLASSES[p.class].variant)||'fabric';
+  document.querySelectorAll('#varOv .fabgrp').forEach(e=>e.style.display=(vt==='fabric')?'flex':'none');
+  document.querySelectorAll('#varOv .fingrp').forEach(e=>e.style.display=(vt==='finish')?'flex':'none');
+  await renderVaList();
+  $('varOv').classList.add('on');
+}
+async function renderVaList(){
+  const v=(await readVars(VP.id))||{id:VP.id,class:VP.class||'',variants:[]};
+  const L=$('vaList'); L.innerHTML=v.variants.length?'':'<div class="qempty">No variants defined yet — the editor cannot upload until at least one exists.</div>';
+  v.variants.forEach((x,i)=>{
+    const d=document.createElement('div'); d.className='prow-item';
+    d.innerHTML='<div class="grow"><span class="pi-id">'+x.code+'</span> <span class="pi-meta">'+x.type+'</span></div><button class="small">✕</button>';
+    d.querySelector('button').onclick=async()=>{ v.variants.splice(i,1); await writeVars(VP.id,v); renderVaList(); };
+    L.appendChild(d);
+  });
+}
+async function addVariant(entry){
+  const v=(await readVars(VP.id))||{id:VP.id,class:VP.class||'',variants:[]};
+  if(v.variants.some(x=>x.code===entry.code)){alert(entry.code+' is already on the list.');return;}
+  v.variants.push(entry); await writeVars(VP.id,v); renderVaList();
+}
+$('vaAddFab').onclick=()=>{ const a=clean($('fCo').value),b=clean($('fCat').value),c=clean($('fCode').value);
+  if(!(a&&b&&c)){alert('Pick company, catalogue and colour code first.');return;}
+  addVariant({code:a+'-'+b+'-'+c,type:'fabric'}); };
+$('vaAddFin').onclick=()=>{ const f=clean($('fFin').value); if(!f){alert('Pick a finish first.');return;} addVariant({code:f,type:'finish'}); };
+$('vaAddSingle').onclick=()=>addVariant({code:'default',type:'none'});
+$('vaClose').onclick=()=>{$('varOv').classList.remove('on');VP=null;};
+async function loadVariantOptions(pid,preselect){
+  const v=S.root?await readVars(pid):null;
+  const sel=$('vSel'); const list=(v&&v.variants)||[];
+  sel.innerHTML=list.length
+    ? '<option value="">— pick variant —</option>'+list.map(x=>'<option value="'+x.code+'">'+x.code+'</option>').join('')
+    : '<option value="">— staff must define variants first —</option>';
+  if(preselect){ if(![...sel.options].some(o=>o.value===preselect)){const o=document.createElement('option');o.value=preselect;o.textContent=preselect;sel.appendChild(o);} sel.value=preselect; }
+}
+$('vSel').onchange=()=>{ S.notes={}; S.flagMsg=''; S.redone={}; loadExisting(); };
+/* ---- v11: instant per-image save + state reload ---- */
+async function loadExisting(){
+  S.files={}; S.subs={}; S.ready=false;
+  const id=pid(), f=fab();
+  if(!S.root||!id||!f){ render(); return; }
+  try{ // restore a rework copy if one exists (surfacing its notes if we don't have them)
+    const rw=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]);
+    if(!S.flagMsg&&!Object.keys(S.notes).length){
+      try{const nh=await rw.getFileHandle('notes.json'); const n=JSON.parse(await (await nh.getFile()).text());
+          S.notes=n.comments||{}; S.flagMsg=n.message||'';}catch(e){}
+    }
+    const td0=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+    await copyInto(rw,td0);
+    try{await td0.removeEntry('notes.json');}catch(e){}
+    const rp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await rp.removeEntry(f,{recursive:true});
+    await refreshQueues();
+  }catch(e){}
+  try{
+    const td=await dirFor(S.root,['_INBOX',S.cls,id,f]);
+    for(const fl of await listFiles(td)){
+      if(!/\.(jpg|jpeg|png|webp)$/i.test(fl.name)) continue;
+      const m=fl.name.match(/__(\d{2})([a-z]?)__/); if(!m) continue;
+      const key=m[1]+(m[2]||'');
+      if(m[2]){ const b=parseInt(m[1],10); S.subs[b]=Math.max(S.subs[b]||0, m[2].charCodeAt(0)-96); }
+      S.files[key]={existing:true,url:URL.createObjectURL(await fl.handle.getFile()),name:fl.name};
+    }
+    try{ await td.getFileHandle('READY.json'); S.ready=true; }catch(e){}
+  }catch(e){}
+  render();
+}
+async function putSlot(key,file){
+  const sk=slotKeys().find(x=>x.key===key); if(!sk) return;
+  if(!S.root){alert('Choose your Intake folder first.');return;}
+  if(!pid()){alert('Pick a product first.');return;}
+  if(!fab()){alert('Pick the variant first — images are filed under it.');$('vSel').focus();return;}
+  try{
+    const td=await dirFor(S.root,['_INBOX',S.cls,pid(),fab()],true);
+    const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
+    for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
+    const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+    const h=await td.getFileHandle(fname(sk,ext),{create:true});
+    const w=await h.createWritable(); await w.write(file); await w.close();
+    try{await td.removeEntry('READY.json');}catch(e){}
+    S.ready=false;
+    S.files[key]={existing:true,url:URL.createObjectURL(file),name:fname(sk,ext)};
+    S.redone[key]=1;
+    render();
+    $('status').className='status ok'; $('status').textContent='Saved '+fname(sk,ext)+' — images save instantly; Send for review when the set is complete.';
+  }catch(e){ $('status').className='status err'; $('status').textContent='Could not save image: '+e.message; }
+}
+async function delSlot(key){
+  const sk=slotKeys().find(x=>x.key===key); if(!sk||!S.files[key]) return;
+  try{
+    const td=await dirFor(S.root,['_INBOX',S.cls,pid(),fab()]);
+    const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
+    for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
+    try{await td.removeEntry('READY.json');}catch(e){} S.ready=false;
+  }catch(e){}
+  delete S.files[key]; delete S.redone[key]; render();
+}
 /* ---- v10: staff dims (pending -> admin approve -> SHOOT.json in masters) ---- */
 function ftin(m){
   if(m==null||isNaN(m)||m==='') return '';
@@ -820,21 +944,40 @@ async function listDimsFiles(){
   return out;
 }
 let DP=null;
+function cmin(m){ return Math.round(m*100)+' cm · '+(m*39.3701).toFixed(1)+' in'; }
 function fx(id){ $('ft_'+id).textContent=ftin(parseFloat($(id).value)); }
-['dw','dd','dh','sd','sh'].forEach(id=>{$(id).addEventListener('input',()=>fx(id));});
-async function openDims(p){
+['dw','dd','dh','sd','sh','f2b','plh'].forEach(id=>{$(id).addEventListener('input',()=>fx(id));});
+async function removeRef(pid){
+  if(!confirm('Remove the reference image for '+pid+'?')) return;
+  try{const d=await dirFor(S.root,['_REFS']); for(const e of REF_EXTS){ try{await d.removeEntry(pid+'.'+e);}catch(err){} }}catch(e){}
+  delete S.refCache[pid]; buildPanel();
+}
+async function openDims(p,readonly){
   if(!S.root){alert('Choose your Intake folder first.');return;}
   DP=p;
   $('doPid').textContent=p.id; $('doMeta').textContent=p.class||'';
   const u=await findRef(p.id);
   $('doThumbs').innerHTML=thumbHtml(p.id,u); wireZoom($('doThumbs'));
   document.querySelectorAll('#dimsOv .sofaonly').forEach(e=>e.style.display=(p.class==='sofa')?'flex':'none');
-  const ex=await readDimsFile(p.id); const dm=(ex&&ex.dims_m)||{};
-  $('dw').value=dm.w!=null?dm.w:''; $('dd').value=dm.d!=null?dm.d:''; $('dh').value=dm.h!=null?dm.h:'';
-  $('sd').value=dm.seat_depth!=null?dm.seat_depth:''; $('sh').value=dm.seat_height!=null?dm.seat_height:'';
-  ['dw','dd','dh','sd','sh'].forEach(fx);
-  $('doStatus').className='status';
-  $('doStatus').textContent= ex ? (ex.status==='approved' ? 'Approved ✓ — saving changes sends it back for re-approval.' : 'Pending admin approval — you can edit and re-save.') : '';
+  document.querySelectorAll('#dimsOv .bedonly').forEach(e=>e.style.display=(p.class==='bed')?'flex':'none');
+  const ex=await readDimsFile(p.id); const dm=(ex&&ex.dims_m)||{}; const im=(ex&&ex.image_dims_m)||{};
+  if(readonly){
+    $('doForm').style.display='none'; $('doSave').style.display='none'; $('doRO').style.display='block';
+    const R=(k,v)=>(v!=null&&v!=='')?('<div class="rrow"><b>'+k+'</b>'+cmin(v)+'<span class="m">('+Number(v).toFixed(2)+' m)</span></div>'):'';
+    let h=R('Width',dm.w)+R('Depth',dm.d)+R('Height',dm.h)+R('Seat depth',dm.seat_depth)
+         +R('Seat height',im.seat_height!=null?im.seat_height:dm.seat_height)+R('F2B depth',im.f2b_depth)+R('Platform height',im.platform_height);
+    $('doRO').innerHTML=h||'<div class="qempty">Staff has not entered dims for this product yet.</div>';
+    $('doStatus').className='status'; $('doStatus').textContent= ex&&ex.status==='approved' ? 'Approved ✓ — use these on the dimension images (cm + inches).' : (ex?'Not yet approved by admin — numbers may still change.':'');
+  } else {
+    $('doForm').style.display='block'; $('doSave').style.display=''; $('doRO').style.display='none';
+    $('dw').value=dm.w!=null?dm.w:''; $('dd').value=dm.d!=null?dm.d:''; $('dh').value=dm.h!=null?dm.h:'';
+    $('sd').value=dm.seat_depth!=null?dm.seat_depth:'';
+    $('sh').value=(im.seat_height!=null?im.seat_height:(dm.seat_height!=null?dm.seat_height:''));
+    $('f2b').value=im.f2b_depth!=null?im.f2b_depth:''; $('plh').value=im.platform_height!=null?im.platform_height:'';
+    ['dw','dd','dh','sd','sh','f2b','plh'].forEach(fx);
+    $('doStatus').className='status';
+    $('doStatus').textContent= ex ? (ex.status==='approved' ? 'Approved ✓ — saving changes sends it back for re-approval.' : 'Pending admin approval — you can edit and re-save.') : '';
+  }
   $('dimsOv').classList.add('on');
 }
 $('doCancel').onclick=()=>{$('dimsOv').classList.remove('on');DP=null;};
@@ -842,9 +985,9 @@ $('doSave').onclick=async()=>{
   if(!DP) return;
   const w=parseFloat($('dw').value),d=parseFloat($('dd').value),h=parseFloat($('dh').value);
   if(!(w>0&&d>0&&h>0)){ $('doStatus').className='status err'; $('doStatus').textContent='Width, depth and height are required — in metres, above 0.'; return; }
-  const dims={w:w,d:d,h:h,
-    seat_depth:parseFloat($('sd').value)||null,seat_height:parseFloat($('sh').value)||null};
-  await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,status:'pending',by:ROLE,updated:new Date().toISOString()});
+  const dims={w:w,d:d,h:h,seat_depth:parseFloat($('sd').value)||null};
+  const idims={seat_height:parseFloat($('sh').value)||null,f2b_depth:parseFloat($('f2b').value)||null,platform_height:parseFloat($('plh').value)||null};
+  await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,image_dims_m:idims,status:'pending',by:ROLE,updated:new Date().toISOString()});
   $('doStatus').className='status ok'; $('doStatus').textContent='Saved — waiting for admin approval.';
   refreshQueues();
 };
@@ -856,12 +999,12 @@ async function buildDims(){
   L.innerHTML='';
   for(const it of items){
     const u=await findRef(it.id);
-    const dm=it.dims_m||{};
+    const dm=it.dims_m||{}; const im=it.image_dims_m||{};
     const line=(k,v)=>(v!=null&&v!=='')?('<span><b>'+k+'</b>'+v+' m = '+ftin(v)+'</span>'):'';
     const d=document.createElement('div'); d.className='prow-item';
     d.innerHTML=thumbHtml(it.id,u)+
       '<div class="grow"><div class="pi-id">'+it.id+'</div><div class="pi-meta">'+(it.class||'')+' · entered by '+(it.by||'staff')+'</div>'+
-      '<div class="dlrow">'+line('W ',dm.w)+line('D ',dm.d)+line('H ',dm.h)+line('Seat D ',dm.seat_depth)+line('Seat H ',dm.seat_height)+'</div></div>'+
+      '<div class="dlrow">'+line('W ',dm.w)+line('D ',dm.d)+line('H ',dm.h)+line('Seat D ',dm.seat_depth)+line('Seat H ',im.seat_height)+line('F2B ',im.f2b_depth)+line('Platform ',im.platform_height)+'</div></div>'+
       '<button class="small" data-a="edit">Edit</button><button class="act" data-a="ok" style="padding:8px 14px;font-size:13px">Approve</button>';
     d.querySelector('[data-a=edit]').onclick=()=>openDims({id:it.id,class:it.class});
     d.querySelector('[data-a=ok]').onclick=async()=>{
@@ -870,7 +1013,7 @@ async function buildDims(){
       const mp=await dirFor(S.masters,[cls,it.id],true);
       let shoot={id:it.id,class:cls};
       try{const h=await mp.getFileHandle(it.id+'__SHOOT.json'); shoot=JSON.parse(await (await h.getFile()).text());}catch(e){}
-      shoot.dims_m=it.dims_m; shoot.dims_approved=new Date().toISOString(); shoot.updated=new Date().toISOString();
+      shoot.dims_m=it.dims_m; shoot.image_dims_m=it.image_dims_m||{}; shoot.dims_approved=new Date().toISOString(); shoot.updated=new Date().toISOString();
       await writeJSON(mp,it.id+'__SHOOT.json',shoot);
       it.status='approved'; it.approved_at=new Date().toISOString();
       await writeDimsFile(it.id,it);
@@ -1009,26 +1152,32 @@ async function buildPanel(){
     L.innerHTML='<div class="qempty">'+((PF.q||PF.cls)?'No products match your filter.':'No products in the register yet'+(done.length?' ('+done.length+' completed, hidden)':'')+'.')+'</div>';return;}
   for(const p of list){
     if(run!==PF.run) return;
-    const nR=pend.filter(x=>x.pid===p.id).length;
+    const nR=pend.filter(x=>x.pid===p.id&&x.ready).length;
+    const nP=pend.filter(x=>x.pid===p.id&&!x.ready).length;
     const nF=flg.filter(x=>x.pid===p.id).length;
     const nA=appr.filter(x=>x.id===p.id).length;
     const u=await findRef(p.id);
     const d=document.createElement('div'); d.className='prow-item';
     let badges='';
+    if(nP)badges+='<span class="bdg">'+nP+' in progress</span>';
     if(nR)badges+='<span class="bdg rev">'+nR+' in review</span>';
     if(nF)badges+='<span class="bdg rev">'+nF+' to fix</span>';
     if(nA)badges+='<span class="bdg ok">'+nA+' approved</span>';
     const canRef=ADMIN||STAFF;
     d.innerHTML=thumbHtml(p.id,u)+
       '<div class="grow"><div class="pi-id">'+p.id+'</div><div class="pi-meta">'+(p.class||'')+'</div><div class="badges">'+badges+'</div></div>'+
-      (canRef?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button><button class="small" data-a="dims">Dims</button>':'')+
+      (canRef?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button>'+(u?'<button class="small" data-a="refdel" title="Remove ref image">✕ ref</button>':'')+'<button class="small" data-a="vars">Variants</button><button class="small" data-a="dims">Dims</button>':'')+
+      (ROLE==='editor'?'<button class="small" data-a="dimsv">Dims</button>':'')+
       (ADMIN?'<button class="small" data-a="done">✓ Complete</button>':'')+
       (STAFF?'':'<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>');
     if(!STAFF) d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
     if(canRef){
       d.querySelector('[data-a=ref]').onclick=()=>uploadRef(p.id);
-      d.querySelector('[data-a=dims]').onclick=()=>openDims(p);
+      if(u) d.querySelector('[data-a=refdel]').onclick=()=>removeRef(p.id);
+      d.querySelector('[data-a=vars]').onclick=()=>openVars(p);
+      d.querySelector('[data-a=dims]').onclick=()=>openDims(p,false);
     }
+    if(ROLE==='editor') d.querySelector('[data-a=dimsv]').onclick=()=>openDims(p,true);
     if(ADMIN){
       d.querySelector('[data-a=done]').onclick=async()=>{
         const st=await readStatus(); const nA=(st.approved||[]).filter(x=>x.id===p.id).length;
@@ -1042,8 +1191,8 @@ async function buildPanel(){
 }
 function startProduct(p){
   if(p.class&&CLASSES[p.class]){S.cls=p.class;$('cls').value=p.class;renderProducts();}
-  $('pidSel').value=p.id; S.notes={}; S.flagMsg=''; S.files={}; S.subs={};
-  setMode('edit'); render();
+  $('pidSel').value=p.id; S.notes={}; S.flagMsg=''; S.files={}; S.subs={}; S.redone={}; S.ready=false;
+  setMode('edit'); loadVariantOptions(p.id); render();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 /* ---- masters viewer ---- */
@@ -1103,6 +1252,7 @@ $('mvPrev').onclick=()=>mvStep(-1);
 $('mvNext').onclick=()=>mvStep(1);
 $('mvClose').onclick=()=>{MV.open=false;$('mview').classList.remove('on');};
 document.addEventListener('keydown',e=>{
+  if($('varOv').classList.contains('on')&&e.key==='Escape'){$('varOv').classList.remove('on');VP=null;return;}
   if($('dimsOv').classList.contains('on')&&e.key==='Escape'){$('dimsOv').classList.remove('on');DP=null;return;}
   if(!MV.open) return;
   if(e.key==='ArrowRight'){e.preventDefault();mvStep(1);}
@@ -1177,11 +1327,7 @@ $('revFlag').onclick=async()=>{
 function render(){
   if(!S.cls||!CLASSES[S.cls]){ $('grid').innerHTML=''; return; }
   const vt=vtype();
-  $('fabOut').textContent=fab()||'—';
-  $('varLbl').textContent = vt==='finish' ? 'Finish' : 'Fabric code';
-  const nv=$('noVar').checked;
-  document.querySelectorAll('.fabgrp').forEach(e=>{e.style.display=(vt==='fabric')?'flex':'none';e.style.opacity=nv?.4:1;});
-  document.querySelectorAll('.fingrp').forEach(e=>{e.style.display=(vt==='finish')?'flex':'none';e.style.opacity=nv?.4:1;});
+  document.querySelectorAll('.editonly').forEach(e=>e.style.display=(S.mode==='edit')?'flex':'none');
   ['fCo','fCat','fCode','fFin'].forEach(id=>$(id).disabled = nv || $(id).disabled&&!nv&&false);
   if(nv){['fCo','fCat','fCode','fFin'].forEach(id=>$(id).disabled=true);}
   else{$('fCo').disabled=false;$('fFin').disabled=false;$('fCat').disabled=!$('fCo').value;$('fCode').disabled=!$('fCat').value;}
@@ -1199,8 +1345,9 @@ function render(){
     h+='<div class="reflabel">Reference</div><div class="refwrap" data-ref="'+rp+'" data-t="'+sk.t+'" data-w="'+sk.why+'"><img src="'+rp+'" onerror="this.parentNode.previousElementSibling.style.display=\'none\';this.parentNode.style.display=\'none\'"><span class="zoom">Click to enlarge</span></div>';
     if(S.mode==='edit'){
       const f=S.files[sk.key];
-      h+='<label class="drop" data-k="'+sk.key+'">'+(f?'<img src="'+URL.createObjectURL(f)+'">':'Drop image or click')+'<input type="file" accept="image/*" data-k="'+sk.key+'"></label>';
-      if(f) h+='<div class="fname">'+fname(sk,f.name.split('.').pop().toLowerCase())+'</div>';
+      const src=f?(f.existing?f.url:URL.createObjectURL(f)):null;
+      h+='<label class="drop" data-k="'+sk.key+'">'+(src?'<img src="'+src+'">':'Drop image or click')+'<input type="file" accept="image/*" data-k="'+sk.key+'"></label>';
+      if(f) h+='<div class="fname">'+(f.name||'')+'</div><div class="tools"><button class="small" data-del="'+sk.key+'">✕ remove</button></div>';
     } else {
       h+='<label class="check"><input type="checkbox" data-k="'+sk.key+'" '+(S.checks[sk.key]?'checked':'')+'><span>Captured</span></label>';
     }
@@ -1209,11 +1356,12 @@ function render(){
     d.innerHTML=h; g.appendChild(d);
   }
   document.querySelectorAll('.refwrap').forEach(w=>w.onclick=()=>lightbox(w.dataset.ref,w.dataset.t,w.dataset.w));
-  document.querySelectorAll('.drop input').forEach(i=>i.onchange=e=>{const f=e.target.files[0];if(f){S.files[e.target.dataset.k]=f;render();}});
+  document.querySelectorAll('.drop input').forEach(i=>i.onchange=e=>{const f=e.target.files[0];if(f) putSlot(e.target.dataset.k,f);});
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.preventDefault();delSlot(b.dataset.del);});
   document.querySelectorAll('.drop').forEach(dz=>{
     dz.ondragover=e=>{e.preventDefault();dz.closest('.slot').classList.add('drag');};
     dz.ondragleave=()=>dz.closest('.slot').classList.remove('drag');
-    dz.ondrop=e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/')){S.files[dz.dataset.k]=f;render();}};
+    dz.ondrop=e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/')) putSlot(dz.dataset.k,f);};
   });
   document.querySelectorAll('.check input').forEach(c=>c.onchange=e=>{S.checks[e.target.dataset.k]=e.target.checked;render();});
   document.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const i=+b.dataset.add;S.subs[i]=(S.subs[i]||1)+1;render();});
@@ -1229,19 +1377,19 @@ function progress(){
   $('bar').classList.toggle('done',p===1);
   $('pct').textContent=done+' / '+req.length+' required';
   $('pct').classList.toggle('done',p===1);
-  const ok=valid(pid())&&!!fab();
+  const ok=valid(pid())&&(S.mode==='shoot'||!!fab());
   const st=$('status'); const missing=req.filter(k=>have.indexOf(k)<0);
   const redo=Object.keys(S.notes).filter(k=>!S.files[k]);
   st.className='status';
-  if(!S.root){ st.textContent='Choose your working folder first.'; $('save').disabled=true; }
-  else if(!ok){ st.textContent = vtype()==='finish' ? 'Pick a class, a product, and the finish — or tick No variant.' : 'Pick a class, a product, and the fabric — or tick No variant.'; $('save').disabled=true; }
-  else if(redo.length){ st.className='status err'; st.textContent='Still to redo: '+redo.join(', '); $('save').disabled=true; }
+  if(!S.root){ st.textContent='Choose your working folder first.'; }
+  else if(!ok){ st.textContent = 'Pick a class, a product, and a variant (staff defines the variant list).'; }
+  else if(redo.length){ st.className='status err'; st.textContent='Still to redo: '+redo.join(', ')+' — replace them, then Send for review.'; }
   else if(missing.length){
     st.className='status err';
     st.textContent=(S.mode==='shoot'?'Not shot yet: ':'Not uploaded: ')+missing.join(', ')+(S.mode==='shoot'?'  —  fix before the piece leaves the studio.':'');
-    $('save').disabled=(S.mode==='edit');
-  } else { st.className='status ok'; st.textContent=S.mode==='shoot'?'All required shots captured. Enter dimensions, then save.':'Ready — Save sends this for review.'; $('save').disabled=false; }
-  $('save').textContent=S.mode==='shoot'?'Save coverage + dimensions':'Save → send for review';
+    
+  } else { st.className='status ok'; st.textContent=S.mode==='shoot'?'All required shots captured — save the coverage record.':'All images saved. Send for review when you are done.'; }
+  $('save').textContent=S.mode==='shoot'?'Save coverage + dimensions':(S.ready?'Sent ✓ — Send again':'Send for review');
 }
 function preview(){
   if(S.mode!=='edit'||!valid(pid())||!fab()){$('preview').textContent='Pick a product and fabric, then add images.';return;}
@@ -1252,33 +1400,46 @@ function preview(){
 /* ---------- save ---------- */
 $('save').onclick=async()=>{
   if(!S.root){alert('Choose your working folder first.');return;}
-  const id=pid(),f=fab();
+  const id=pid();
   try{
     if(S.mode==='shoot'){
       const pd=await dirFor(S.root,['_INBOX',S.cls,id],true);
       const cov={}; for(const sk of slotKeys()) cov[sk.key]={captured:!!S.checks[sk.key],slot:sk.k,optional:!!sk.opt};
       await writeJSON(pd,id+'__SHOOT.json',{id:id,class:S.cls,coverage:cov,updated:new Date().toISOString()});
-      $('status').className='status ok'; $('status').textContent='Coverage saved for '+id+'. Dimensions are entered later by staff (Products → Dims).';
+      $('status').className='status ok'; $('status').textContent='Coverage saved for '+id+'.';
       return;
     }
-    const td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
-    // rectify: carry previously-kept images from _INBOX/_rework first, then overwrite with re-uploads
-    try{ const old=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]); await copyInto(old,td); try{await td.removeEntry('notes.json');}catch(e2){} }catch(e1){}
-    for(const sk of slotKeys()){
-      const file=S.files[sk.key]; if(!file) continue;
-      const h=await td.getFileHandle(fname(sk,file.name.split('.').pop().toLowerCase()),{create:true});
-      const w=await h.createWritable(); await w.write(file); await w.close();
-    }
-    const man={id:id,fabric_code:f,class:S.cls,submitted:new Date().toISOString(),slots:{}};
-    for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:fname(sk,S.files[sk.key].name.split('.').pop().toLowerCase()),slot:sk.k};
-    await writeJSON(td,'manifest.json',man);
-    // clear any prior flag for this product+fabric
-    try{ const fp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await fp.removeEntry(f,{recursive:true}); }catch(e){}
-    S.notes={}; S.files={};
-    $('status').className='status ok'; $('status').textContent='Sent for review — '+id+' · '+f+'.';
-    await refreshQueues(); render();
+    await sendForReview();
   }catch(e){ $('status').className='status err'; $('status').textContent='Could not write: '+e.message; }
 };
+async function sendForReview(){
+  const id=pid(), f=fab();
+  document.querySelectorAll('.slot').forEach(el=>el.classList.remove('missing'));
+  const probs=[];
+  if(!id) probs.push('no product selected');
+  if(!f) probs.push('no variant selected');
+  const missing=id&&f?reqKeys().filter(k=>!S.files[k]):[];
+  if(missing.length) probs.push('missing images: '+missing.join(', '));
+  const redo=Object.keys(S.notes).filter(k=>!S.redone[k]);
+  if(redo.length) probs.push('still to redo: '+redo.join(', '));
+  if(probs.length){
+    [...missing,...redo].forEach(k=>{
+      const inp=document.querySelector('.drop input[data-k="'+k+'"]');
+      if(inp){ const card=inp.closest('.slot'); if(card) card.classList.add('missing'); }
+    });
+    $('status').className='status err'; $('status').textContent='Cannot send yet — '+probs.join(' · ');
+    const first=document.querySelector('.slot.missing'); if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  const td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+  const man={id:id,fabric_code:f,class:S.cls,submitted:new Date().toISOString(),slots:{}};
+  for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:S.files[sk.key].name||fname(sk,'jpg'),slot:sk.k};
+  await writeJSON(td,'manifest.json',man);
+  await writeJSON(td,'READY.json',{sent:new Date().toISOString(),by:ROLE});
+  S.ready=true; S.notes={}; S.flagMsg='';
+  $('status').className='status ok'; $('status').textContent='Sent for review — '+id+' · '+f+'.';
+  await refreshQueues(); render();
+}
 
 /* ---------- modes ---------- */
 function setMode(m){
@@ -1311,7 +1472,7 @@ $('mUp').onclick=()=>setMode('uploads');
 $('mDims').onclick=()=>setMode('dims');
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 $('pidSel').onchange=()=>{S.notes={};render();};
-$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';$('fCo').value='';$('fCo').onchange();$('fFin').value='';$('noVar').checked=false;['dw','dd','dh','sd','sh'].forEach(x=>$(x).value='');render();};
+$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};S.redone={};S.ready=false;$('pidSel').value='';$('vSel').innerHTML='<option value=\"\">— pick a product first —</option>';['dw','dd','dh','sd','sh','f2b','plh'].forEach(x=>{const el=$(x);if(el)el.value='';});render();};
 render();
 </script>
 </body>
