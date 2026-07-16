@@ -1326,12 +1326,7 @@ $('revFlag').onclick=async()=>{
 /* ---------- slot grid ---------- */
 function render(){
   if(!S.cls||!CLASSES[S.cls]){ $('grid').innerHTML=''; return; }
-  const vt=vtype();
   document.querySelectorAll('.editonly').forEach(e=>e.style.display=(S.mode==='edit')?'flex':'none');
-  ['fCo','fCat','fCode','fFin'].forEach(id=>$(id).disabled = nv || $(id).disabled&&!nv&&false);
-  if(nv){['fCo','fCat','fCode','fFin'].forEach(id=>$(id).disabled=true);}
-  else{$('fCo').disabled=false;$('fFin').disabled=false;$('fCat').disabled=!$('fCo').value;$('fCode').disabled=!$('fCat').value;}
-  document.querySelectorAll('.sofaonly').forEach(e=>e.style.display=(S.cls==='sofa')?'flex':'none');
   const g=$('grid'); g.innerHTML='';
   for(const sk of slotKeys()){
     const d=document.createElement('div');
