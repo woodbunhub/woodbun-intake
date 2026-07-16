@@ -221,7 +221,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="row">
     <div class="f"><label>1 — Class</label><select id="cls"></select></div>
     <div class="f"><label>2 — Product</label><select id="pidSel" style="min-width:180px"><option value="">— select —</option></select></div>
-    <div class="f editonly"><label>3 — Variant</label><select id="vSel" style="min-width:230px"><option value="">— pick a product first —</option></select></div>
+    <div class="f editonly"><label>3 — Variant</label><select id="vSel" style="min-width:230px"><option value="">— pick a product first —</option></select><div class="ftin" id="vNote" style="color:var(--terracotta)"></div></div>
     <div class="f adminonly"><label>Register</label><button class="small" id="loadReg">Load register file</button></div>
   </div>
   <div class="dest">
@@ -234,7 +234,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <span class="path none" id="mastPath">Not set — choose “01_MASTERS”. Needed to approve.</span>
     <button class="small" id="pickMast">Choose folder</button>
   </div>
-  <div id="prodHead"><img id="phImg" alt=""><img id="phOri" alt="" style="display:none"><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div></div></div>
+  <div id="prodHead"><img id="phImg" alt=""><img id="phOri" alt="" style="display:none"><img id="phVar" class="zoomable" alt="" style="display:none"><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div><div class="ph-msg" id="phVarLbl" style="color:var(--teal);display:none"></div></div></div>
   <div class="hint" style="margin-top:8px" id="cfgNote">Loading register…</div>
 </div>
 
@@ -294,7 +294,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <div class="f fingrp"><label>&nbsp;</label><button class="small" id="vaAddFin">+ Add</button></div>
     <div class="f"><label>&nbsp;</label><button class="small" id="vaAddSingle">Single / no variant</button></div>
   </div>
-  <div class="hint">Variants added here become the editor's choices for this product. Removing one does NOT delete already-uploaded images.</div>
+  <div class="hint" id="vaHint">Variants added here become the editor's choices for this product.</div>
   <div class="prow-list" id="vaList"></div>
   <div class="do-actions"><button class="small" id="vaClose">Close (Esc)</button></div>
 </div></div>
@@ -434,7 +434,7 @@ const ROLE_HASHES={
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
 let ROLE='', ADMIN=false, STAFF=false;
 async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
-const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',redone:{},ready:false,_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{}};
+const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',redone:{},rework:false,ready:false,_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{}};
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const clean=s=>(s||'').toString().trim().toLowerCase().replace(/\s+/g,'-');
@@ -764,7 +764,7 @@ async function refreshQueues(){
 async function openFlagged(it,notes){
   S.cls=it.cls; $('cls').value=it.cls; renderProducts();
   $('pidSel').value=it.pid;
-  S.notes=notes.comments||{}; S.flagMsg=notes.message||''; S.files={}; S.subs={}; S.redone={};
+  S.notes=notes.comments||{}; S.flagMsg=notes.message||''; S.files={}; S.subs={};
   setMode('edit');
   await loadVariantOptions(it.pid, it.fab);
   await loadExisting();
@@ -802,6 +802,40 @@ async function findRef(pid){
   }catch(e){}
   S.refCache[pid]=url; return url;
 }
+function vrefStem(pid,variant){ return pid+'__'+variant; }
+async function findVariantRef(pid,variant){
+  const key='v:'+pid+'::'+variant;
+  if(S.refCache[key]!==undefined) return S.refCache[key];
+  let url=null;
+  try{const d=await dirFor(S.root,['_REFS']);
+    for(const e of REF_EXTS){ try{const h=await d.getFileHandle(vrefStem(pid,variant)+'.'+e); url=URL.createObjectURL(await h.getFile()); break;}catch(err){} }
+  }catch(e){}
+  S.refCache[key]=url; return url;
+}
+async function uploadVariantRef(pid,variant,cb){
+  const i=document.createElement('input'); i.type='file'; i.accept='image/*';
+  i.onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const ext=(f.name.split('.').pop()||'jpg').toLowerCase();
+    const d=await dirFor(S.root,['_REFS'],true);
+    for(const x of REF_EXTS){ try{await d.removeEntry(vrefStem(pid,variant)+'.'+x);}catch(err){} }
+    const h=await d.getFileHandle(vrefStem(pid,variant)+'.'+(REF_EXTS.includes(ext)?ext:'jpg'),{create:true});
+    const w=await h.createWritable(); await w.write(f); await w.close();
+    delete S.refCache['v:'+pid+'::'+variant];
+    if(cb) cb();
+  };
+  i.click();
+}
+async function removeVariantRef(pid,variant){
+  try{const d=await dirFor(S.root,['_REFS']); for(const e of REF_EXTS){ try{await d.removeEntry(vrefStem(pid,variant)+'.'+e);}catch(err){} }}catch(e){}
+  delete S.refCache['v:'+pid+'::'+variant];
+}
+async function variantHasUploads(cls,pid,variant){
+  try{const d=await dirFor(S.root,['_INBOX',cls,pid,variant]);
+    for(const f of await listFiles(d)){ if(/\.(jpg|jpeg|png|webp)$/i.test(f.name)) return true; }
+  }catch(e){}
+  return false;
+}
 async function uploadRef(pid){
   const i=document.createElement('input'); i.type='file'; i.accept='image/*';
   i.onchange=async e=>{
@@ -823,21 +857,45 @@ async function openVars(p){
   if(!S.root){alert('Choose your Intake folder first.');return;}
   VP=p; $('vaPid').textContent=p.id; $('vaMeta').textContent=p.class||'';
   const u=await findRef(p.id); $('vaThumbs').innerHTML=thumbHtml(p.id,u); wireZoom($('vaThumbs'));
+  const isSofa=(p.class==='sofa');
   const vt=(CLASSES[p.class]&&CLASSES[p.class].variant)||'fabric';
-  document.querySelectorAll('#varOv .fabgrp').forEach(e=>e.style.display=(vt==='fabric')?'flex':'none');
-  document.querySelectorAll('#varOv .fingrp').forEach(e=>e.style.display=(vt==='finish')?'flex':'none');
+  document.querySelectorAll('#varOv .fabgrp').forEach(e=>e.style.display=(isSofa&&vt==='fabric')?'flex':'none');
+  document.querySelectorAll('#varOv .fingrp').forEach(e=>e.style.display=(isSofa&&vt==='finish')?'flex':'none');
+  $('vaHint').textContent = isSofa
+    ? 'Add each fabric variant, then attach its identifier photo — the editor cannot upload to a variant with no photo.'
+    : 'This class uses a single product with no fabric variants. Click the Single / no variant button.';
   await renderVaList();
   $('varOv').classList.add('on');
 }
 async function renderVaList(){
   const v=(await readVars(VP.id))||{id:VP.id,class:VP.class||'',variants:[]};
-  const L=$('vaList'); L.innerHTML=v.variants.length?'':'<div class="qempty">No variants defined yet — the editor cannot upload until at least one exists.</div>';
-  v.variants.forEach((x,i)=>{
+  const L=$('vaList');
+  if(!v.variants.length){ L.innerHTML='<div class="qempty">No variants yet. A variant becomes editable only after you attach its identifier photo.</div>'; return; }
+  L.innerHTML='';
+  for(let i=0;i<v.variants.length;i++){
+    const x=v.variants[i];
+    const isSingle=(x.code==='default');
+    const rurl=isSingle?null:await findVariantRef(VP.id,x.code);
     const d=document.createElement('div'); d.className='prow-item';
-    d.innerHTML='<div class="grow"><span class="pi-id">'+x.code+'</span> <span class="pi-meta">'+x.type+'</span></div><button class="small">✕</button>';
-    d.querySelector('button').onclick=async()=>{ v.variants.splice(i,1); await writeVars(VP.id,v); renderVaList(); };
-    L.appendChild(d);
-  });
+    let thumb = isSingle
+      ? '<div class="noref">single</div>'
+      : (rurl?'<img class="zoomable" data-t="'+x.code+'" src="'+rurl+'">':'<div class="noref" style="border-color:var(--terracotta);color:var(--terracotta)">needs photo</div>');
+    d.innerHTML='<div class="thumbs">'+thumb+'</div>'+
+      '<div class="grow"><span class="pi-id">'+x.code+'</span> <span class="pi-meta">'+x.type+(isSingle?'':(rurl?' · ready':' · editor blocked until photo added'))+'</span></div>'+
+      (isSingle?'':'<button class="small" data-a="ph">'+(rurl?'Replace photo':'Add photo')+'</button>')+
+      '<button class="small" data-a="del">✕</button>';
+    if(!isSingle){
+      d.querySelector('[data-a=ph]').onclick=()=>uploadVariantRef(VP.id,x.code,()=>renderVaList());
+    }
+    d.querySelector('[data-a=del]').onclick=async()=>{
+      if(!isSingle && await variantHasUploads(VP.class||'',VP.id,x.code)){
+        if(!confirm('This variant has editor uploads. Removing it (and its reference) will block further editing on it. Remove anyway?')) return;
+      }
+      await removeVariantRef(VP.id,x.code);
+      v.variants.splice(i,1); await writeVars(VP.id,v); renderVaList();
+    };
+    L.appendChild(d); wireZoom(d);
+  }
 }
 async function addVariant(entry){
   const v=(await readVars(VP.id))||{id:VP.id,class:VP.class||'',variants:[]};
@@ -852,32 +910,47 @@ $('vaAddSingle').onclick=()=>addVariant({code:'default',type:'none'});
 $('vaClose').onclick=()=>{$('varOv').classList.remove('on');VP=null;};
 async function loadVariantOptions(pid,preselect){
   const v=S.root?await readVars(pid):null;
-  const sel=$('vSel'); const list=(v&&v.variants)||[];
-  sel.innerHTML=list.length
-    ? '<option value="">— pick variant —</option>'+list.map(x=>'<option value="'+x.code+'">'+x.code+'</option>').join('')
-    : '<option value="">— staff must define variants first —</option>';
+  const all=(v&&v.variants)||[];
+  const ready=[];
+  for(const x of all){
+    if(x.code==='default'){ ready.push(x); continue; }
+    if(await findVariantRef(pid,x.code)) ready.push(x);
+  }
+  const sel=$('vSel');
+  const blocked=all.length-ready.length;
+  sel.innerHTML=ready.length
+    ? '<option value="">— pick variant —</option>'+ready.map(x=>'<option value="'+x.code+'">'+x.code+'</option>').join('')
+    : (all.length?'<option value="">— variants defined but none have a photo yet —</option>':'<option value="">— staff must define variants first —</option>');
   if(preselect){ if(![...sel.options].some(o=>o.value===preselect)){const o=document.createElement('option');o.value=preselect;o.textContent=preselect;sel.appendChild(o);} sel.value=preselect; }
+  const note=$('vNote'); if(note) note.textContent = blocked>0 ? (blocked+' more variant(s) waiting on staff to add an identifier photo.') : '';
 }
-$('vSel').onchange=()=>{ S.notes={}; S.flagMsg=''; S.redone={}; loadExisting(); };
+$('vSel').onchange=()=>{ loadExisting(); };
 /* ---- v11: instant per-image save + state reload ---- */
+function rkey(){ return pid()+'::'+fab(); }
+function redoneMap(){ const k=rkey(); return (S.redone[k]=S.redone[k]||{}); }
+async function reworkDirIfAny(id,f){
+  try{ const d=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]);
+       // treat as rework only if it actually has content
+       for(const fl of await listFiles(d)){ if(fl.name) return d; }
+  }catch(e){}
+  return null;
+}
+async function workDir(id,f,create){
+  const rw=await reworkDirIfAny(id,f);
+  if(rw) return {dir:rw, rework:true};
+  return {dir:await dirFor(S.root,['_INBOX',S.cls,id,f],!!create), rework:false};
+}
 async function loadExisting(){
-  S.files={}; S.subs={}; S.ready=false;
+  S.files={}; S.subs={}; S.ready=false; S.rework=false; S.notes={}; S.flagMsg='';
   const id=pid(), f=fab();
   if(!S.root||!id||!f){ render(); return; }
-  try{ // restore a rework copy if one exists (surfacing its notes if we don't have them)
-    const rw=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]);
-    if(!S.flagMsg&&!Object.keys(S.notes).length){
-      try{const nh=await rw.getFileHandle('notes.json'); const n=JSON.parse(await (await nh.getFile()).text());
-          S.notes=n.comments||{}; S.flagMsg=n.message||'';}catch(e){}
-    }
-    const td0=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
-    await copyInto(rw,td0);
-    try{await td0.removeEntry('notes.json');}catch(e){}
-    const rp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await rp.removeEntry(f,{recursive:true});
-    await refreshQueues();
-  }catch(e){}
+  const {dir:td, rework}=await workDir(id,f,true);
+  S.rework=rework;
+  if(rework){                                   // ALWAYS re-read comments + redo-progress for THIS product+variant
+    try{const nh=await td.getFileHandle('notes.json'); const n=JSON.parse(await (await nh.getFile()).text());
+        S.notes=n.comments||{}; S.flagMsg=n.message||''; S.redone[rkey()]=n.redone||{};}catch(e){}
+  }
   try{
-    const td=await dirFor(S.root,['_INBOX',S.cls,id,f]);
     for(const fl of await listFiles(td)){
       if(!/\.(jpg|jpeg|png|webp)$/i.test(fl.name)) continue;
       const m=fl.name.match(/__(\d{2})([a-z]?)__/); if(!m) continue;
@@ -895,7 +968,7 @@ async function putSlot(key,file){
   if(!pid()){alert('Pick a product first.');return;}
   if(!fab()){alert('Pick the variant first — images are filed under it.');$('vSel').focus();return;}
   try{
-    const td=await dirFor(S.root,['_INBOX',S.cls,pid(),fab()],true);
+    const {dir:td}=await workDir(pid(),fab(),true);
     const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
     for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
@@ -904,7 +977,11 @@ async function putSlot(key,file){
     try{await td.removeEntry('READY.json');}catch(e){}
     S.ready=false;
     S.files[key]={existing:true,url:URL.createObjectURL(file),name:fname(sk,ext)};
-    S.redone[key]=1;
+    redoneMap()[key]=1;
+    if(S.rework){ try{
+      let n={comments:S.notes,message:S.flagMsg,redone:redoneMap()};
+      await writeJSON(td,'notes.json',n);
+    }catch(e){} }
     render();
     $('status').className='status ok'; $('status').textContent='Saved '+fname(sk,ext)+' — images save instantly; Send for review when the set is complete.';
   }catch(e){ $('status').className='status err'; $('status').textContent='Could not save image: '+e.message; }
@@ -912,12 +989,12 @@ async function putSlot(key,file){
 async function delSlot(key){
   const sk=slotKeys().find(x=>x.key===key); if(!sk||!S.files[key]) return;
   try{
-    const td=await dirFor(S.root,['_INBOX',S.cls,pid(),fab()]);
+    const {dir:td}=await workDir(pid(),fab(),false);
     const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
     for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
     try{await td.removeEntry('READY.json');}catch(e){} S.ready=false;
   }catch(e){}
-  delete S.files[key]; delete S.redone[key]; render();
+  delete S.files[key]; delete redoneMap()[key]; render();
 }
 /* ---- v10: staff dims (pending -> admin approve -> SHOOT.json in masters) ---- */
 function ftin(m){
@@ -1067,6 +1144,13 @@ async function updateProdHead(){
   $('phOri').style.display=o?'block':'none';
   if(o){ $('phOri').src=o.src; $('phOri').onerror=()=>{$('phOri').style.display='none';};
          $('phOri').onclick=()=>lightbox(o.src, o.t,''); }
+  const vsel=fab();
+  let vurl=null;
+  if(vsel && vsel!=='default' && S.root) vurl=await findVariantRef(id,vsel);
+  $('phVar').style.display=vurl?'block':'none';
+  if(vurl){ $('phVar').src=vurl; $('phVar').onclick=()=>lightbox(vurl, id+' · '+vsel+' — match this variant',''); }
+  $('phVarLbl').style.display=vurl?'block':'none';
+  if(vurl) $('phVarLbl').textContent='Match this variant: '+vsel;
   $('prodHead').style.display='flex';
 }
 function orientationRef(pidStr){
@@ -1191,7 +1275,7 @@ async function buildPanel(){
 }
 function startProduct(p){
   if(p.class&&CLASSES[p.class]){S.cls=p.class;$('cls').value=p.class;renderProducts();}
-  $('pidSel').value=p.id; S.notes={}; S.flagMsg=''; S.files={}; S.subs={}; S.redone={}; S.ready=false;
+  $('pidSel').value=p.id; S.notes={}; S.flagMsg=''; S.files={}; S.subs={}; S.ready=false;
   setMode('edit'); loadVariantOptions(p.id); render();
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1415,7 +1499,7 @@ async function sendForReview(){
   if(!f) probs.push('no variant selected');
   const missing=id&&f?reqKeys().filter(k=>!S.files[k]):[];
   if(missing.length) probs.push('missing images: '+missing.join(', '));
-  const redo=Object.keys(S.notes).filter(k=>!S.redone[k]);
+  const redo=Object.keys(S.notes).filter(k=>!redoneMap()[k]);
   if(redo.length) probs.push('still to redo: '+redo.join(', '));
   if(probs.length){
     [...missing,...redo].forEach(k=>{
@@ -1426,7 +1510,18 @@ async function sendForReview(){
     const first=document.querySelector('.slot.missing'); if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
     return;
   }
-  const td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+  // graduate: if this was a rework session, move the finished set from _rework into _INBOX
+  let td;
+  if(S.rework){
+    const src=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]);
+    td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+    await copyInto(src,td);
+    try{await td.removeEntry('notes.json');}catch(e){}
+    try{ const rp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await rp.removeEntry(f,{recursive:true}); }catch(e){}
+    S.rework=false;
+  } else {
+    td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+  }
   const man={id:id,fabric_code:f,class:S.cls,submitted:new Date().toISOString(),slots:{}};
   for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:S.files[sk.key].name||fname(sk,'jpg'),slot:sk.k};
   await writeJSON(td,'manifest.json',man);
@@ -1467,7 +1562,7 @@ $('mUp').onclick=()=>setMode('uploads');
 $('mDims').onclick=()=>setMode('dims');
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 $('pidSel').onchange=()=>{S.notes={};render();};
-$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};S.redone={};S.ready=false;$('pidSel').value='';$('vSel').innerHTML='<option value=\"\">— pick a product first —</option>';['dw','dd','dh','sd','sh','f2b','plh'].forEach(x=>{const el=$(x);if(el)el.value='';});render();};
+$('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};S.redone={};S.rework=false;S.ready=false;$('pidSel').value='';$('vSel').innerHTML='<option value=\"\">— pick a product first —</option>';['dw','dd','dh','sd','sh','f2b','plh'].forEach(x=>{const el=$(x);if(el)el.value='';});render();};
 render();
 </script>
 </body>
