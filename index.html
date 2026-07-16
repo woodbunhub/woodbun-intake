@@ -285,7 +285,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <button class="act warn" id="revFlag">Flag for rectification</button>
       <button class="act good" id="revApprove">Approve → Masters</button>
     </div>
-    <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing. Approving moves every file to <b>01_MASTERS</b>. Flagging moves the folder to <b>_FLAGGED</b> with your comments attached.</div>
+    <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing. Approving copies every file to <b>01_MASTERS</b>. Flagging sends the folder to the editor's <b>_INBOX/_rework</b> with your comments.</div>
     <div class="rgrid" id="revGrid"></div>
   </div>
 </div>
@@ -555,10 +555,15 @@ async function loadRegister(){
 /* ---------- filesystem ---------- */
 async function dirFor(root,parts,create){let d=root;for(const p of parts){d=await d.getDirectoryHandle(p,{create:!!create});}return d;}
 async function listFiles(h){const o=[];for await(const [n,fh] of h.entries()){if(fh.kind==='file')o.push({name:n,handle:fh});}return o;}
-async function walk(base){ // base: '_TEMP' | '_FLAGGED'  → [{cls,pid,fab,handle}]
+async function walk(lane){ // lane: 'pending' | 'rework'  → [{cls,pid,fab,handle}]
   const out=[]; if(!S.root) return out;
-  let b; try{ b=await S.root.getDirectoryHandle(base); }catch(e){ return out; }
+  let b;
+  try{
+    b=await S.root.getDirectoryHandle('_INBOX');
+    if(lane==='rework') b=await b.getDirectoryHandle('_rework');
+  }catch(e){ return out; }
   for await(const [c,ch] of b.entries()){ if(ch.kind!=='directory')continue;
+    if(lane==='pending' && c==='_rework') continue; // rework lives under _INBOX but is a separate lane
     for await(const [p,ph] of ch.entries()){ if(ph.kind!=='directory')continue;
       for await(const [f,fh] of ph.entries()){ if(fh.kind!=='directory')continue; out.push({cls:c,pid:p,fab:f,handle:fh}); } } }
   return out;
@@ -570,12 +575,12 @@ async function copyInto(src,dst){
     const w=await h.createWritable(); await w.write(file); await w.close();
   }
 }
-async function approveItem(it){           // _TEMP (intake) -> 01_MASTERS (private)
-  const src=await dirFor(S.root,['_TEMP',it.cls,it.pid,it.fab]);
+async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admin-only)
+  const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
   const dst=await dirFor(S.masters,[it.cls,it.pid,it.fab],true);
   await copyInto(src,dst);
   try{                                     // carry the shoot record up with it
-    const tp=await dirFor(S.root,['_TEMP',it.cls,it.pid]);
+    const tp=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
     const mp=await dirFor(S.masters,[it.cls,it.pid],true);
     for(const f of await listFiles(tp)){
       if(!f.name.endsWith('SHOOT.json')) continue;
@@ -584,14 +589,14 @@ async function approveItem(it){           // _TEMP (intake) -> 01_MASTERS (priva
       const w=await h.createWritable(); await w.write(file); await w.close();
     }
   }catch(e){}
-  const parent=await dirFor(S.root,['_TEMP',it.cls,it.pid]);
+  const parent=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
 }
-async function flagItem(it){              // _TEMP -> _FLAGGED, both inside intake
-  const src=await dirFor(S.root,['_TEMP',it.cls,it.pid,it.fab]);
-  const dst=await dirFor(S.root,['_FLAGGED',it.cls,it.pid,it.fab],true);
+async function flagItem(it){              // _INBOX -> _INBOX/_rework (editor-visible)
+  const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
+  const dst=await dirFor(S.root,['_INBOX','_rework',it.cls,it.pid,it.fab],true);
   await copyInto(src,dst);
-  const parent=await dirFor(S.root,['_TEMP',it.cls,it.pid]);
+  const parent=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
 }
 async function writeJSON(dirHandle,name,obj){const h=await dirHandle.getFileHandle(name,{create:true});const w=await h.createWritable();await w.write(JSON.stringify(obj,null,2));await w.close();}
@@ -606,7 +611,7 @@ async function ensurePerm(h){ if(!h) return false;
   if((await h.queryPermission(o))==='granted') return true;
   try{ return (await h.requestPermission(o))==='granted'; }catch(e){ return false; }
 }
-function setIntake(h){ S.root=h; $('destPath').textContent=h.name+'  →  _TEMP / <class>/<product>/<variant>/'; $('destPath').classList.remove('none'); }
+function setIntake(h){ S.root=h; $('destPath').textContent=h.name+'  →  _INBOX / <class>/<product>/<variant>/'; $('destPath').classList.remove('none'); }
 function setMasters(h){ S.masters=h; $('mastPath').textContent=h.name+'  →  <class>/<product>/<variant>/'; $('mastPath').classList.remove('none'); }
 
 $('pickDir').onclick=async()=>{
@@ -649,7 +654,7 @@ async function offerReconnect(){
 }
 
 async function refreshQueues(){
-  const pend=await walk('_TEMP'), flg=await walk('_FLAGGED');
+  const pend=await walk('pending'), flg=await walk('rework');
   $('revPill').textContent=pend.length; $('revPill').style.display=pend.length?'inline-block':'none';
   $('flagPill').textContent=flg.length; $('flagPill').style.display=flg.length?'inline-block':'none';
   $('fixPill').textContent=flg.length; $('fixPill').style.display=flg.length?'inline-block':'none';
@@ -845,7 +850,11 @@ async function buildPanel(){
     d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
     if(ADMIN){
       d.querySelector('[data-a=ref]').onclick=()=>uploadRef(p.id);
-      d.querySelector('[data-a=done]').onclick=async()=>{await toggleComplete(p.id);buildPanel();};
+      d.querySelector('[data-a=done]').onclick=async()=>{
+        const st=await readStatus(); const nA=(st.approved||[]).filter(x=>x.id===p.id).length;
+        if(nA===0 && !confirm('Nothing has been approved for '+p.id+' yet. Mark it complete and hide it from the list anyway?')) return;
+        await toggleComplete(p.id); S._statusCache=null; buildPanel();
+      };
     }
     L.appendChild(d);
   }
@@ -923,7 +932,7 @@ $('mvRecall').onclick=async()=>{
   if(msg===null) return;
   if(!msg.trim()){alert('A recall needs a comment, or the editor is guessing.');return;}
   const src=await dirFor(S.masters,[e.it.cls,e.it.pid,e.it.fab]);
-  const dst=await dirFor(S.root,['_FLAGGED',e.it.cls,e.it.pid,e.it.fab],true);
+  const dst=await dirFor(S.root,['_INBOX','_rework',e.it.cls,e.it.pid,e.it.fab],true);
   await copyInto(src,dst);
   await writeJSON(dst,'notes.json',{recalled_at:new Date().toISOString(),message:msg.trim(),comments:{}});
   const parent=await dirFor(S.masters,[e.it.cls,e.it.pid]);
@@ -974,7 +983,7 @@ $('revApprove').onclick=async()=>{
 $('revFlag').onclick=async()=>{
   if(!S.revItem)return;
   if(!Object.keys(S.revFiles).length){alert('Write a comment on at least one image, so the editor knows what to fix.');return;}
-  const src=await dirFor(S.root,['_TEMP',S.revItem.cls,S.revItem.pid,S.revItem.fab]);
+  const src=await dirFor(S.root,['_INBOX',S.revItem.cls,S.revItem.pid,S.revItem.fab]);
   await writeJSON(src,'notes.json',{flagged_at:new Date().toISOString(),comments:S.revFiles});
   await flagItem(S.revItem);
   $('status').className='status err'; $('status').textContent='Flagged — '+Object.keys(S.revFiles).length+' image(s) sent back to the editor.';
@@ -1053,7 +1062,7 @@ function progress(){
 }
 function preview(){
   if(S.mode!=='edit'||!valid(pid())||!fab()){$('preview').textContent='Pick a product and fabric, then add images.';return;}
-  const r=slotKeys().filter(s=>S.files[s.key]).map(s=>'_TEMP/'+relDir()+fname(s,S.files[s.key].name.split('.').pop().toLowerCase()));
+  const r=slotKeys().filter(s=>S.files[s.key]).map(s=>'_INBOX/'+relDir()+fname(s,S.files[s.key].name.split('.').pop().toLowerCase()));
   $('preview').textContent=r.length?r.join('\n'):'—';
 }
 
@@ -1065,15 +1074,15 @@ $('save').onclick=async()=>{
               seat_depth:parseFloat($('sd').value)||null,seat_height:parseFloat($('sh').value)||null};
   try{
     if(S.mode==='shoot'){
-      const pd=await dirFor(S.root,['_TEMP',S.cls,id],true);
+      const pd=await dirFor(S.root,['_INBOX',S.cls,id],true);
       const cov={}; for(const sk of slotKeys()) cov[sk.key]={captured:!!S.checks[sk.key],slot:sk.k,optional:!!sk.opt};
       await writeJSON(pd,id+'__SHOOT.json',{id:id,class:S.cls,dims_m:dims,coverage:cov,updated:new Date().toISOString()});
       $('status').className='status ok'; $('status').textContent='Coverage + dimensions saved for '+id+'.';
       return;
     }
-    const td=await dirFor(S.root,['_TEMP',S.cls,id,f],true);
-    // rectify: carry the previously-approved-of images from _FLAGGED first, then overwrite with re-uploads
-    try{ const old=await dirFor(S.root,['_FLAGGED',S.cls,id,f]); await copyInto(old,td); try{await td.removeEntry('notes.json');}catch(e2){} }catch(e1){}
+    const td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
+    // rectify: carry previously-kept images from _INBOX/_rework first, then overwrite with re-uploads
+    try{ const old=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]); await copyInto(old,td); try{await td.removeEntry('notes.json');}catch(e2){} }catch(e1){}
     for(const sk of slotKeys()){
       const file=S.files[sk.key]; if(!file) continue;
       const h=await td.getFileHandle(fname(sk,file.name.split('.').pop().toLowerCase()),{create:true});
@@ -1083,7 +1092,7 @@ $('save').onclick=async()=>{
     for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:fname(sk,S.files[sk.key].name.split('.').pop().toLowerCase()),slot:sk.k};
     await writeJSON(td,'manifest.json',man);
     // clear any prior flag for this product+fabric
-    try{ const fp=await dirFor(S.root,['_FLAGGED',S.cls,id]); await fp.removeEntry(f,{recursive:true}); }catch(e){}
+    try{ const fp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await fp.removeEntry(f,{recursive:true}); }catch(e){}
     S.notes={}; S.files={};
     $('status').className='status ok'; $('status').textContent='Sent for review — '+id+' · '+f+'.';
     await refreshQueues(); render();
