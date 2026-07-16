@@ -167,6 +167,14 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .fabwrap{border:1px solid var(--border);border-radius:9px;padding:10px 12px;background:var(--panel);flex-direction:column;gap:8px}
 .fabwrap .fw-title{font-size:11px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .fabwrap .fw-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.pfilter{display:flex;gap:10px;margin-bottom:12px;align-items:center;flex-wrap:wrap}
+.pfilter select{font:13px var(--sans);padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--surface)}
+.pfsearch{position:relative;flex:1;min-width:200px;max-width:340px}
+.pfsearch input{width:100%;font:14px var(--sans);padding:8px 11px;border:1px solid var(--border);border-radius:7px;box-sizing:border-box}
+#pfSug{display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:0 0 8px 8px;box-shadow:0 6px 18px rgba(43,33,24,.14);max-height:260px;overflow:auto}
+#pfSug .sug{display:flex;justify-content:space-between;gap:10px;padding:8px 11px;font:600 13px var(--mono);cursor:pointer}
+#pfSug .sug:hover{background:var(--panel)}
+#pfSug .sug span{color:var(--muted);font:500 11px var(--sans)}
 </style>
 </head>
 <body class="locked">
@@ -242,6 +250,11 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div id="panelArea" style="display:none">
   <div class="card">
     <div class="ptabs"><button id="ptNew" class="on">New products</button><button id="ptFix">Needs rework <span class="pill" id="fixPill" style="display:none">0</span></button></div>
+    <div class="pfilter">
+      <select id="pfClass"><option value="">All classes</option></select>
+      <div class="pfsearch"><input id="pfQ" placeholder="Search product…" autocomplete="off"><div id="pfSug"></div></div>
+      <button class="small" id="pfClr" title="Clear filters">✕</button>
+    </div>
     <div class="prow-list" id="plist"><div class="qempty">Choose your Intake folder first.</div></div>
   </div>
 </div>
@@ -641,7 +654,7 @@ async function refreshQueues(){
   $('flagPill').textContent=flg.length; $('flagPill').style.display=flg.length?'inline-block':'none';
   $('fixPill').textContent=flg.length; $('fixPill').style.display=flg.length?'inline-block':'none';
   $('pnlPill').textContent=flg.length; $('pnlPill').style.display=flg.length?'inline-block':'none';
-  S._pend=pend; S._flg=flg;
+  S._pend=pend; S._flg=flg; S._statusCache=null;
   if(S.mode==='panel') buildPanel();
 
   $('revQueue').innerHTML=pend.length?'':'<div class="qempty">Nothing waiting. When the editor uploads, it lands here.</div>';
@@ -684,6 +697,7 @@ async function readStatus(){
 }
 async function writeStatus(st){
   const d=await dirFor(S.root,['_STATUS'],true); await writeJSON(d,'status.json',st);
+  S._statusCache=st;
 }
 async function markApproved(it){
   const st=await readStatus();
@@ -752,16 +766,49 @@ function wireZoom(container){
 let PTAB='new';
 $('ptNew').onclick=()=>{PTAB='new';$('ptNew').classList.add('on');$('ptFix').classList.remove('on');buildPanel();};
 $('ptFix').onclick=()=>{PTAB='fix';$('ptFix').classList.add('on');$('ptNew').classList.remove('on');buildPanel();};
+const PF={q:'',cls:'',run:0};
+function pfMatches(){
+  let src=S.products.filter(p=>!PF.cls||p.class===PF.cls);
+  if(PF.q) src=src.filter(p=>p.id.indexOf(PF.q)>-1);
+  return src;
+}
+function showSug(){
+  const box=$('pfSug');
+  if(!PF.q){box.style.display='none';box.innerHTML='';return;}
+  const m=pfMatches().slice(0,8);
+  if(!m.length){box.style.display='none';return;}
+  box.innerHTML=m.map(p=>'<div class="sug" data-id="'+p.id+'">'+p.id+'<span>'+(p.class||'')+'</span></div>').join('');
+  box.style.display='block';
+  box.querySelectorAll('.sug').forEach(el=>el.onmousedown=e=>{e.preventDefault();
+    $('pfQ').value=el.dataset.id; PF.q=el.dataset.id; box.style.display='none'; buildPanel();});
+}
+$('pfQ').oninput=()=>{PF.q=$('pfQ').value.trim().toLowerCase(); showSug(); buildPanel();};
+$('pfQ').addEventListener('keydown',e=>{
+  if(e.key==='Escape'){$('pfSug').style.display='none';}
+  if(e.key==='Enter'){$('pfSug').style.display='none'; buildPanel();}});
+$('pfQ').addEventListener('blur',()=>setTimeout(()=>{$('pfSug').style.display='none';},150));
+$('pfClass').onchange=()=>{PF.cls=$('pfClass').value; showSug(); buildPanel();};
+$('pfClr').onclick=()=>{PF.q='';PF.cls='';$('pfQ').value='';$('pfClass').value='';$('pfSug').style.display='none';buildPanel();};
 async function buildPanel(){
   const L=$('plist');
   if(!S.root){L.innerHTML='<div class="qempty">Choose your Intake folder first.</div>';return;}
-  const st=await readStatus();
+  if($('pfClass').options.length<=1&&S.classes&&S.classes.length){
+    $('pfClass').innerHTML='<option value="">All classes</option>'+
+      S.classes.filter(c=>c.active!=='n'&&CLASSES[c.cls]).map(c=>'<option value="'+c.cls+'">'+c.label+'</option>').join('');
+    $('pfClass').value=PF.cls;
+  }
+  const run=++PF.run;
+  const st=S._statusCache||(S._statusCache=await readStatus());
+  if(run!==PF.run) return;
   const done=st.completed||[], appr=st.approved||[];
   const pend=S._pend||[], flg=S._flg||[];
   L.innerHTML='';
   if(PTAB==='fix'){
     if(!flg.length){L.innerHTML='<div class="qempty">Nothing to rework. Flagged and recalled items land here.</div>';return;}
-    for(const it of flg){
+    const flgF=flg.filter(it=>(!PF.cls||it.cls===PF.cls)&&(!PF.q||it.pid.indexOf(PF.q)>-1));
+    if(!flgF.length){L.innerHTML='<div class="qempty">No rework items match your filter.</div>';return;}
+    for(const it of flgF){
+      if(run!==PF.run) return;
       let notes={}; try{const nh=await it.handle.getFileHandle('notes.json'); notes=JSON.parse(await (await nh.getFile()).text());}catch(e){}
       const n=Object.keys(notes.comments||{}).length;
       const u=await findRef(it.pid);
@@ -775,9 +822,13 @@ async function buildPanel(){
     wireZoom(L);
     return;
   }
-  const list=S.products.filter(p=>done.indexOf(p.id)<0);
-  if(!list.length){L.innerHTML='<div class="qempty">No products in the register yet'+(done.length?' ('+done.length+' completed, hidden)':'')+'.</div>';return;}
+  const list=S.products.filter(p=>done.indexOf(p.id)<0)
+    .filter(p=>!PF.cls||p.class===PF.cls)
+    .filter(p=>!PF.q||p.id.indexOf(PF.q)>-1);
+  if(!list.length){
+    L.innerHTML='<div class="qempty">'+((PF.q||PF.cls)?'No products match your filter.':'No products in the register yet'+(done.length?' ('+done.length+' completed, hidden)':'')+'.')+'</div>';return;}
   for(const p of list){
+    if(run!==PF.run) return;
     const nR=pend.filter(x=>x.pid===p.id).length;
     const nF=flg.filter(x=>x.pid===p.id).length;
     const nA=appr.filter(x=>x.id===p.id).length;
