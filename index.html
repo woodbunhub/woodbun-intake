@@ -175,6 +175,14 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 #pfSug .sug{display:flex;justify-content:space-between;gap:10px;padding:8px 11px;font:600 13px var(--mono);cursor:pointer}
 #pfSug .sug:hover{background:var(--panel)}
 #pfSug .sug span{color:var(--muted);font:500 11px var(--sans)}
+#dimsOv{position:fixed;inset:0;background:rgba(43,33,24,.55);display:none;align-items:flex-start;justify-content:center;z-index:97;overflow:auto;padding:40px 16px}
+#dimsOv.on{display:flex}
+.dimscard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;max-width:780px;width:100%;display:flex;flex-direction:column;gap:14px}
+.do-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.do-actions{display:flex;gap:10px;align-items:center}
+.ftin{font:600 11px var(--mono);color:var(--muted);min-height:14px;margin-top:3px}
+.dlrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;font:12px var(--mono)}
+.dlrow b{color:var(--muted);font-weight:650;margin-right:3px}
 </style>
 </head>
 <body class="locked">
@@ -196,6 +204,8 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <button id="mPanel" class="hide">Products<span class="pill" id="pnlPill" style="display:none">0</span></button>
     <button id="mRev" class="hide">Review<span class="pill" id="revPill" style="display:none">0</span></button>
     <button id="mMast" class="hide">Masters</button>
+    <button id="mUp" class="hide">Uploads</button>
+    <button id="mDims" class="hide">Dims<span class="pill" id="dimPill" style="display:none">0</span></button>
     <button id="mOut" class="hide" title="Log out">Log out</button>
   </div>
 </header>
@@ -228,20 +238,6 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="hint" style="margin-top:8px" id="cfgNote">Loading register…</div>
 </div>
 
-<div class="card" id="dimsCard">
-  <div class="row">
-    <div class="f dim"><label>Width (m)</label><input id="dw" type="number" step="0.01" placeholder="2.67"></div>
-    <div class="f dim"><label>Depth (m)</label><input id="dd" type="number" step="0.01" placeholder="2.03"></div>
-    <div class="f dim"><label>Height (m)</label><input id="dh" type="number" step="0.01" placeholder="0.85"></div>
-    <div class="f dim sofaonly"><label>Seat depth (m)</label><input id="sd" type="number" step="0.01" placeholder="0.58"></div>
-    <div class="f dim sofaonly"><label>Seat height (m)</label><input id="sh" type="number" step="0.01" placeholder="0.42"></div>
-    <div class="f" style="flex:1;min-width:240px">
-      <label>Measure now, not later</label>
-      <div class="hint">W / D / H are the <b>overall footprint</b> — the box the piece occupies. On an L-sofa, depth is how far the L <b>sticks out</b> (back of the long arm to the front edge of the chaise), not the seat depth. <b>Seat depth</b> = front edge of the cushion to the backrest. <b>Seat height</b> = floor to the top of the seat cushion. Dimensions belong to the product, not the fabric.</div>
-    </div>
-  </div>
-</div>
-
 <div id="flagCard" class="card" style="display:none">
   <h2>Needs rectification</h2>
   <div class="queue" id="flagQueue"></div>
@@ -263,6 +259,29 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="hint" style="margin-bottom:10px">Click a product to open the viewer. ← → arrow keys move between images; the last image of a product flows into the next. Recall sends a product's images back to the editor with your comment.</div>
   <div class="prow-list" id="mlist"><div class="qempty">Choose the 01_MASTERS folder first.</div></div></div>
 </div>
+<div id="dimsArea" style="display:none">
+  <div class="card"><h2>Dimensions — waiting for approval</h2>
+  <div class="hint" style="margin-bottom:10px">Staff-entered measurements, shown in metres and feet+inches. Check against the reference photo, then Approve — approval writes the product's SHOOT.json in 01_MASTERS, which the converter reads.</div>
+  <div class="prow-list" id="dlist"><div class="qempty">Choose your Intake folder first.</div></div></div>
+</div>
+<div id="upArea" style="display:none">
+  <div class="card"><h2>Uploaded images</h2>
+  <div class="hint" style="margin-bottom:10px">Everything editors have uploaded, including rework. Click View — ←/→ arrow keys move through images, Esc closes.</div>
+  <div class="prow-list" id="ulist"><div class="qempty">Choose your Intake folder first.</div></div></div>
+</div>
+<div id="dimsOv"><div class="dimscard">
+  <div class="do-head"><div><div class="ph-id" id="doPid">—</div><div class="pi-meta" id="doMeta"></div></div><div class="thumbs" id="doThumbs"></div></div>
+  <div class="row">
+    <div class="f dim"><label>Width (m)</label><input id="dw" type="number" step="0.01" placeholder="2.67"><div class="ftin" id="ft_dw"></div></div>
+    <div class="f dim"><label>Depth (m)</label><input id="dd" type="number" step="0.01" placeholder="2.03"><div class="ftin" id="ft_dd"></div></div>
+    <div class="f dim"><label>Height (m)</label><input id="dh" type="number" step="0.01" placeholder="0.85"><div class="ftin" id="ft_dh"></div></div>
+    <div class="f dim sofaonly"><label>Seat depth (m)</label><input id="sd" type="number" step="0.01" placeholder="0.58"><div class="ftin" id="ft_sd"></div></div>
+    <div class="f dim sofaonly"><label>Seat height (m)</label><input id="sh" type="number" step="0.01" placeholder="0.42"><div class="ftin" id="ft_sh"></div></div>
+  </div>
+  <div class="hint">W / D / H are the <b>overall footprint</b> — the box the piece occupies. On an L-sofa, depth is how far the L <b>sticks out</b>, not the seat depth. <b>Seat depth</b> = cushion front edge to backrest. <b>Seat height</b> = floor to cushion top. Dimensions belong to the product, not the fabric.</div>
+  <div class="status" id="doStatus"></div>
+  <div class="do-actions"><button class="act" id="doSave">Save dims</button><button class="small" id="doCancel">Cancel (Esc)</button></div>
+</div></div>
 <div id="mview"><div class="mv-top"><div class="mv-cap" id="mvCap">—</div><button class="small" id="mvClose">Close (Esc)</button></div>
 <div class="mv-img"><img id="mvImg" alt=""></div>
 <button class="mv-nav mv-prev" id="mvPrev">‹</button><button class="mv-nav mv-next" id="mvNext">›</button>
@@ -373,8 +392,9 @@ const FALLBACK={
 const ROLE_HASHES={
  'a6fb977e4f3353faa5e985f7570be593006748d688116b2d69a77647df1dfaf7':'admin',
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
- '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor'};
-let ROLE='', ADMIN=false;
+ '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
+ 'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
+let ROLE='', ADMIN=false, STAFF=false;
 async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
 const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{}};
 const $=id=>document.getElementById(id);
@@ -390,15 +410,17 @@ const fab=()=>{
   return (a&&b&&c)?clean(a)+'-'+clean(b)+'-'+clean(c):'';
 };
 function applyRole(r){
-  ROLE=r; ADMIN=(r==='admin'); sessionStorage.setItem('wb_role',r);
+  ROLE=r; ADMIN=(r==='admin'); STAFF=(r==='staff'); sessionStorage.setItem('wb_role',r);
   document.body.classList.remove('locked');
   document.body.classList.toggle('admin',ADMIN);
   $('adminBadge').textContent=r; $('adminBadge').style.display='inline-block';
-  $('mShoot').classList.toggle('hide', r==='editor');
+  $('mShoot').classList.toggle('hide', r==='editor'||STAFF);
   $('mPanel').classList.toggle('hide', r==='shoot');
-  $('mEdit').classList.toggle('hide', r==='shoot');
+  $('mEdit').classList.toggle('hide', r==='shoot'||STAFF);
   $('mRev').classList.toggle('hide', !ADMIN);
   $('mMast').classList.toggle('hide', !ADMIN);
+  $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
+  $('mDims').classList.toggle('hide', !ADMIN);
   $('mOut').classList.remove('hide');
   loadRegister();
   setMode(r==='shoot' ? 'shoot' : 'panel');
@@ -413,7 +435,7 @@ async function tryLogin(){
 $('pwGo').onclick=tryLogin;
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
 $('mOut')&&($('mOut').onclick=()=>{sessionStorage.removeItem('wb_role');location.reload();});
-{const saved=sessionStorage.getItem('wb_role'); if(saved&&['admin','shoot','editor'].includes(saved)) setTimeout(()=>applyRole(saved),0);}
+{const saved=sessionStorage.getItem('wb_role'); if(saved&&['admin','shoot','editor','staff'].includes(saved)) setTimeout(()=>applyRole(saved),0);}
 
 function slotKeys(){const o=[];for(const s of CLASSES[S.cls].slots){if(s.sub){const e=S.subs[s.i]||0;if(!e)o.push({...s,key:pad(s.i)});else for(let j=0;j<e;j++)o.push({...s,key:pad(s.i)+'abcdef'[j]});}else o.push({...s,key:pad(s.i)});}return o;}
 const fname=(sk,ext)=>pid()+'__'+fab()+'__'+sk.key+'__'+sk.k+'.'+(ext||'jpg');
@@ -660,6 +682,8 @@ async function refreshQueues(){
   $('fixPill').textContent=flg.length; $('fixPill').style.display=flg.length?'inline-block':'none';
   $('pnlPill').textContent=flg.length; $('pnlPill').style.display=flg.length?'inline-block':'none';
   S._pend=pend; S._flg=flg; S._statusCache=null;
+  try{ const dp=(await listDimsFiles()).filter(x=>x.status!=='approved').length;
+       $('dimPill').textContent=dp; $('dimPill').style.display=dp?'inline-block':'none'; }catch(e){}
   if(S.mode==='panel') buildPanel();
 
   $('revQueue').innerHTML=pend.length?'':'<div class="qempty">Nothing waiting. When the editor uploads, it lands here.</div>';
@@ -736,6 +760,123 @@ async function uploadRef(pid){
     delete S.refCache[pid]; buildPanel();
   };
   i.click();
+}
+/* ---- v10: staff dims (pending -> admin approve -> SHOOT.json in masters) ---- */
+function ftin(m){
+  if(m==null||isNaN(m)||m==='') return '';
+  const t=m*39.3701; let ft=Math.floor(t/12); let inch=Math.round((t-ft*12)*10)/10;
+  if(inch>=12){ft+=1;inch=0;}
+  return ft+"' "+inch+'"';
+}
+async function readDimsFile(pid){
+  try{const d=await dirFor(S.root,['_DIMS']);const h=await d.getFileHandle(pid+'.json');
+    return JSON.parse(await (await h.getFile()).text());}catch(e){return null;}
+}
+async function writeDimsFile(pid,obj){
+  const d=await dirFor(S.root,['_DIMS'],true); await writeJSON(d,pid+'.json',obj);
+}
+async function listDimsFiles(){
+  const out=[]; if(!S.root) return out;
+  try{const d=await dirFor(S.root,['_DIMS']);
+    for(const f of await listFiles(d)){
+      if(!f.name.endsWith('.json')) continue;
+      try{out.push(JSON.parse(await (await f.handle.getFile()).text()));}catch(e){}
+    }
+  }catch(e){}
+  return out;
+}
+let DP=null;
+function fx(id){ $('ft_'+id).textContent=ftin(parseFloat($(id).value)); }
+['dw','dd','dh','sd','sh'].forEach(id=>{$(id).addEventListener('input',()=>fx(id));});
+async function openDims(p){
+  if(!S.root){alert('Choose your Intake folder first.');return;}
+  DP=p;
+  $('doPid').textContent=p.id; $('doMeta').textContent=p.class||'';
+  const u=await findRef(p.id);
+  $('doThumbs').innerHTML=thumbHtml(p.id,u); wireZoom($('doThumbs'));
+  document.querySelectorAll('#dimsOv .sofaonly').forEach(e=>e.style.display=(p.class==='sofa')?'flex':'none');
+  const ex=await readDimsFile(p.id); const dm=(ex&&ex.dims_m)||{};
+  $('dw').value=dm.w!=null?dm.w:''; $('dd').value=dm.d!=null?dm.d:''; $('dh').value=dm.h!=null?dm.h:'';
+  $('sd').value=dm.seat_depth!=null?dm.seat_depth:''; $('sh').value=dm.seat_height!=null?dm.seat_height:'';
+  ['dw','dd','dh','sd','sh'].forEach(fx);
+  $('doStatus').className='status';
+  $('doStatus').textContent= ex ? (ex.status==='approved' ? 'Approved ✓ — saving changes sends it back for re-approval.' : 'Pending admin approval — you can edit and re-save.') : '';
+  $('dimsOv').classList.add('on');
+}
+$('doCancel').onclick=()=>{$('dimsOv').classList.remove('on');DP=null;};
+$('doSave').onclick=async()=>{
+  if(!DP) return;
+  const w=parseFloat($('dw').value),d=parseFloat($('dd').value),h=parseFloat($('dh').value);
+  if(!(w>0&&d>0&&h>0)){ $('doStatus').className='status err'; $('doStatus').textContent='Width, depth and height are required — in metres, above 0.'; return; }
+  const dims={w:w,d:d,h:h,
+    seat_depth:parseFloat($('sd').value)||null,seat_height:parseFloat($('sh').value)||null};
+  await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,status:'pending',by:ROLE,updated:new Date().toISOString()});
+  $('doStatus').className='status ok'; $('doStatus').textContent='Saved — waiting for admin approval.';
+  refreshQueues();
+};
+async function buildDims(){
+  const L=$('dlist');
+  if(!S.root){L.innerHTML='<div class="qempty">Choose your Intake folder first.</div>';return;}
+  const items=(await listDimsFiles()).filter(x=>x.status!=='approved').sort((a,b)=>(a.id||'').localeCompare(b.id||''));
+  if(!items.length){L.innerHTML='<div class="qempty">No dims waiting for approval.</div>';return;}
+  L.innerHTML='';
+  for(const it of items){
+    const u=await findRef(it.id);
+    const dm=it.dims_m||{};
+    const line=(k,v)=>(v!=null&&v!=='')?('<span><b>'+k+'</b>'+v+' m = '+ftin(v)+'</span>'):'';
+    const d=document.createElement('div'); d.className='prow-item';
+    d.innerHTML=thumbHtml(it.id,u)+
+      '<div class="grow"><div class="pi-id">'+it.id+'</div><div class="pi-meta">'+(it.class||'')+' · entered by '+(it.by||'staff')+'</div>'+
+      '<div class="dlrow">'+line('W ',dm.w)+line('D ',dm.d)+line('H ',dm.h)+line('Seat D ',dm.seat_depth)+line('Seat H ',dm.seat_height)+'</div></div>'+
+      '<button class="small" data-a="edit">Edit</button><button class="act" data-a="ok" style="padding:8px 14px;font-size:13px">Approve</button>';
+    d.querySelector('[data-a=edit]').onclick=()=>openDims({id:it.id,class:it.class});
+    d.querySelector('[data-a=ok]').onclick=async()=>{
+      if(!S.masters){alert('Choose the 01_MASTERS folder first — approval writes the SHOOT.json there.');return;}
+      const cls=it.class||'misc';
+      const mp=await dirFor(S.masters,[cls,it.id],true);
+      let shoot={id:it.id,class:cls};
+      try{const h=await mp.getFileHandle(it.id+'__SHOOT.json'); shoot=JSON.parse(await (await h.getFile()).text());}catch(e){}
+      shoot.dims_m=it.dims_m; shoot.dims_approved=new Date().toISOString(); shoot.updated=new Date().toISOString();
+      await writeJSON(mp,it.id+'__SHOOT.json',shoot);
+      it.status='approved'; it.approved_at=new Date().toISOString();
+      await writeDimsFile(it.id,it);
+      buildDims(); refreshQueues();
+    };
+    L.appendChild(d); wireZoom(d);
+  }
+}
+/* ---- staff/admin uploads viewer (read-only) ---- */
+async function buildUploads(){
+  const L=$('ulist');
+  if(!S.root){L.innerHTML='<div class="qempty">Choose your Intake folder first.</div>';return;}
+  const items=[...await walk('pending'),...(await walk('rework')).map(x=>Object.assign({},x,{rw:true}))];
+  if(!items.length){L.innerHTML='<div class="qempty">Nothing uploaded yet.</div>';return;}
+  L.innerHTML='';
+  const byPid={};
+  items.forEach(it=>{(byPid[it.pid]=byPid[it.pid]||[]).push(it);});
+  for(const pidk of Object.keys(byPid).sort()){
+    const vs=byPid[pidk];
+    const u=await findRef(pidk);
+    const d=document.createElement('div'); d.className='prow-item';
+    d.innerHTML=thumbHtml(pidk,u)+
+      '<div class="grow"><div class="pi-id">'+pidk+'</div><div class="pi-meta">'+vs[0].cls+' · '+vs.map(v=>v.fab+(v.rw?' (rework)':'')).join(', ')+'</div></div>'+
+      '<button class="small">View</button>';
+    d.querySelector('button').onclick=()=>openUploadsViewer(pidk);
+    L.appendChild(d); wireZoom(d);
+  }
+}
+async function openUploadsViewer(startPid){
+  const items=[...await walk('pending'),...(await walk('rework')).map(x=>Object.assign({},x,{rw:true}))];
+  MV.flat=[];
+  for(const it of items){
+    const files=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));
+    for(const f of files) MV.flat.push({it:it,fh:f.handle,name:f.name,url:null});
+  }
+  if(!MV.flat.length) return;
+  MV.i=Math.max(0,MV.flat.findIndex(e=>e.it.pid===startPid));
+  MV.open=true; $('mview').classList.add('on');
+  $('mvRecall').style.display='none'; $('mvDone').style.display='none';
+  showMV();
 }
 async function updateProdHead(){
   const id=pid();
@@ -843,13 +984,18 @@ async function buildPanel(){
     if(nR)badges+='<span class="bdg rev">'+nR+' in review</span>';
     if(nF)badges+='<span class="bdg rev">'+nF+' to fix</span>';
     if(nA)badges+='<span class="bdg ok">'+nA+' approved</span>';
+    const canRef=ADMIN||STAFF;
     d.innerHTML=thumbHtml(p.id,u)+
       '<div class="grow"><div class="pi-id">'+p.id+'</div><div class="pi-meta">'+(p.class||'')+'</div><div class="badges">'+badges+'</div></div>'+
-      (ADMIN?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button><button class="small" data-a="done">✓ Complete</button>':'')+
-      '<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>';
-    d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
-    if(ADMIN){
+      (canRef?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button><button class="small" data-a="dims">Dims</button>':'')+
+      (ADMIN?'<button class="small" data-a="done">✓ Complete</button>':'')+
+      (STAFF?'':'<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>');
+    if(!STAFF) d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
+    if(canRef){
       d.querySelector('[data-a=ref]').onclick=()=>uploadRef(p.id);
+      d.querySelector('[data-a=dims]').onclick=()=>openDims(p);
+    }
+    if(ADMIN){
       d.querySelector('[data-a=done]').onclick=async()=>{
         const st=await readStatus(); const nA=(st.approved||[]).filter(x=>x.id===p.id).length;
         if(nA===0 && !confirm('Nothing has been approved for '+p.id+' yet. Mark it complete and hide it from the list anyway?')) return;
@@ -897,6 +1043,8 @@ async function buildMasters(){
 }
 let MV={flat:[],i:0,open:false};
 async function openViewer(startPid){
+  $('mvRecall').style.display=ADMIN?'':'none';
+  $('mvDone').style.display=ADMIN?'':'none';
   const items=await walkMasters();
   MV.flat=[];
   for(const it of items){
@@ -913,7 +1061,7 @@ async function showMV(){
   const e=MV.flat[MV.i]; if(!e) return;
   $('mvImg').src=await mvUrl(e);
   const m=e.name.match(/__(\d{2}[a-f]?)__([a-z-]+)\./i);
-  $('mvCap').textContent=e.it.pid+' · '+e.it.fab+' · '+(m?m[1]+' '+m[2]:e.name)+'   ('+(MV.i+1)+' / '+MV.flat.length+')';
+  $('mvCap').textContent=e.it.pid+' · '+e.it.fab+(e.it.rw?' · rework':'')+' · '+(m?m[1]+' '+m[2]:e.name)+'   ('+(MV.i+1)+' / '+MV.flat.length+')';
   const nx=MV.flat[MV.i+1]; if(nx) mvUrl(nx);
 }
 function mvStep(d){ if(!MV.open)return; MV.i=Math.min(MV.flat.length-1,Math.max(0,MV.i+d)); showMV(); }
@@ -921,6 +1069,7 @@ $('mvPrev').onclick=()=>mvStep(-1);
 $('mvNext').onclick=()=>mvStep(1);
 $('mvClose').onclick=()=>{MV.open=false;$('mview').classList.remove('on');};
 document.addEventListener('keydown',e=>{
+  if($('dimsOv').classList.contains('on')&&e.key==='Escape'){$('dimsOv').classList.remove('on');DP=null;return;}
   if(!MV.open) return;
   if(e.key==='ArrowRight'){e.preventDefault();mvStep(1);}
   else if(e.key==='ArrowLeft'){e.preventDefault();mvStep(-1);}
@@ -1070,14 +1219,12 @@ function preview(){
 $('save').onclick=async()=>{
   if(!S.root){alert('Choose your working folder first.');return;}
   const id=pid(),f=fab();
-  const dims={w:parseFloat($('dw').value)||null,d:parseFloat($('dd').value)||null,h:parseFloat($('dh').value)||null,
-              seat_depth:parseFloat($('sd').value)||null,seat_height:parseFloat($('sh').value)||null};
   try{
     if(S.mode==='shoot'){
       const pd=await dirFor(S.root,['_INBOX',S.cls,id],true);
       const cov={}; for(const sk of slotKeys()) cov[sk.key]={captured:!!S.checks[sk.key],slot:sk.k,optional:!!sk.opt};
-      await writeJSON(pd,id+'__SHOOT.json',{id:id,class:S.cls,dims_m:dims,coverage:cov,updated:new Date().toISOString()});
-      $('status').className='status ok'; $('status').textContent='Coverage + dimensions saved for '+id+'.';
+      await writeJSON(pd,id+'__SHOOT.json',{id:id,class:S.cls,coverage:cov,updated:new Date().toISOString()});
+      $('status').className='status ok'; $('status').textContent='Coverage saved for '+id+'. Dimensions are entered later by staff (Products → Dims).';
       return;
     }
     const td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
@@ -1102,18 +1249,21 @@ $('save').onclick=async()=>{
 /* ---------- modes ---------- */
 function setMode(m){
   S.mode=m;
-  ['mShoot','mEdit','mRev','mPanel','mMast'].forEach(b=>$(b).classList.remove('on'));
-  $({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast'}[m]).classList.add('on');
-  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters'}[m];
-  $('dimsCard').style.display=(m==='shoot')?'block':'none';
+  ['mShoot','mEdit','mRev','mPanel','mMast','mUp','mDims'].forEach(b=>$(b).classList.remove('on'));
+  $({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast',uploads:'mUp',dims:'mDims'}[m]).classList.add('on');
+  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters',uploads:'Uploads',dims:'Dims'}[m];
   $('workArea').style.display=(m==='shoot'||m==='edit')?'block':'none';
   $('revArea').style.display=(m==='review')?'block':'none';
   $('panelArea').style.display=(m==='panel')?'block':'none';
   $('mastArea').style.display=(m==='masters')?'block':'none';
-  document.querySelector('.card').style.display=(m==='panel'||m==='masters')?'none':'block';
+  $('dimsArea').style.display=(m==='dims')?'block':'none';
+  $('upArea').style.display=(m==='uploads')?'block':'none';
+  document.querySelector('.card').style.display=(m==='shoot'||m==='edit')?'block':'none';
   refreshQueues();
   if(m==='panel') buildPanel();
   if(m==='masters') buildMasters();
+  if(m==='dims') buildDims();
+  if(m==='uploads') buildUploads();
   if(m==='shoot'||m==='edit') render();
 }
 $('mShoot').onclick=()=>setMode('shoot');
@@ -1121,6 +1271,8 @@ $('mEdit').onclick=()=>setMode('edit');
 $('mRev').onclick=()=>setMode('review');
 $('mPanel').onclick=()=>setMode('panel');
 $('mMast').onclick=()=>setMode('masters');
+$('mUp').onclick=()=>setMode('uploads');
+$('mDims').onclick=()=>setMode('dims');
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 $('pidSel').onchange=()=>{S.notes={};render();};
 $('reset').onclick=()=>{S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';$('fCo').value='';$('fCo').onchange();$('fFin').value='';$('noVar').checked=false;['dw','dd','dh','sd','sh'].forEach(x=>$(x).value='');render();};
