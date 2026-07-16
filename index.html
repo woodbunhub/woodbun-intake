@@ -238,6 +238,18 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="hint" style="margin-top:8px" id="cfgNote">Loading register…</div>
 </div>
 
+<div id="folderBar" class="card" style="display:none">
+  <div class="dest">
+    <span class="reflabel">Intake folder</span>
+    <span class="path none" id="destPath2">Not set — choose your “Intake” folder once.</span>
+    <button class="small" id="pickDir2">Choose folder</button>
+  </div>
+  <div class="dest adminonly2" style="display:none">
+    <span class="reflabel">Masters folder</span>
+    <span class="path none" id="mastPath2">Not set — choose “01_MASTERS”. Needed to approve dims/images.</span>
+    <button class="small" id="pickMast2">Choose folder</button>
+  </div>
+</div>
 <div id="flagCard" class="card" style="display:none">
   <h2>Needs rectification</h2>
   <div class="queue" id="flagQueue"></div>
@@ -421,6 +433,7 @@ function applyRole(r){
   $('mMast').classList.toggle('hide', !ADMIN);
   $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
   $('mDims').classList.toggle('hide', !ADMIN);
+  document.querySelectorAll('.adminonly2').forEach(e=>e.style.display=ADMIN?'flex':'none');
   $('mOut').classList.remove('hide');
   loadRegister();
   setMode(r==='shoot' ? 'shoot' : 'panel');
@@ -633,44 +646,65 @@ async function ensurePerm(h){ if(!h) return false;
   if((await h.queryPermission(o))==='granted') return true;
   try{ return (await h.requestPermission(o))==='granted'; }catch(e){ return false; }
 }
-function setIntake(h){ S.root=h; $('destPath').textContent=h.name+'  →  _INBOX / <class>/<product>/<variant>/'; $('destPath').classList.remove('none'); }
-function setMasters(h){ S.masters=h; $('mastPath').textContent=h.name+'  →  <class>/<product>/<variant>/'; $('mastPath').classList.remove('none'); }
+function setIntake(h){ S.root=h;
+  const t=h.name+'  →  _INBOX / <class>/<product>/<variant>/';
+  $('destPath').textContent=t; $('destPath').classList.remove('none');
+  $('destPath2').textContent=t; $('destPath2').classList.remove('none');
+}
+function setMasters(h){ S.masters=h;
+  const t=h.name+'  →  <class>/<product>/<variant>/';
+  $('mastPath').textContent=t; $('mastPath').classList.remove('none');
+  $('mastPath2').textContent=t; $('mastPath2').classList.remove('none');
+}
 
-$('pickDir').onclick=async()=>{
+async function chooseIntake(){
   if(!window.showDirectoryPicker){alert('Use Chrome or Edge — this needs folder access.');return;}
   try{
     const h=await window.showDirectoryPicker({mode:'readwrite'});
     setIntake(h); await hSet('intake',h);
     await refreshQueues(); render();
+    if(S.mode==='panel')buildPanel(); if(S.mode==='dims')buildDims(); if(S.mode==='uploads')buildUploads();
   }catch(e){}
-};
-$('pickMast').onclick=async()=>{
+}
+$('pickDir').onclick=chooseIntake;
+$('pickDir2').onclick=chooseIntake;
+async function chooseMasters(){
   try{
     const h=await window.showDirectoryPicker({mode:'readwrite'});
     setMasters(h); await hSet('masters',h);
+    if(S.mode==='masters')buildMasters();
   }catch(e){}
-};
+}
+$('pickMast').onclick=chooseMasters;
+$('pickMast2').onclick=chooseMasters;
 /* offer reconnect on load, once a role is active */
+function offerOn(ids,label,onclick){
+  ids.forEach(id=>{const el=$(id); if(!el)return;
+    el.textContent='↻ Reconnect to “'+label+'” (click)'; el.classList.remove('none'); el.style.cursor='pointer'; el.onclick=onclick;});
+}
 async function offerReconnect(){
   if(!window.showDirectoryPicker) return;
   const ih=await hGet('intake');
   if(ih){
-    $('destPath').textContent='↻ Reconnect to “'+ih.name+'” (click)';
-    $('destPath').classList.remove('none'); $('destPath').style.cursor='pointer';
-    $('destPath').onclick=async()=>{
-      if(await ensurePerm(ih)){ setIntake(ih); $('destPath').style.cursor=''; $('destPath').onclick=null; await refreshQueues(); render(); if(S.mode==='panel')buildPanel(); }
-      else { $('destPath').textContent='Reconnect denied — use Choose folder.'; }
+    const reconn=async()=>{
+      if(await ensurePerm(ih)){ setIntake(ih);
+        ['destPath','destPath2'].forEach(id=>{$(id).style.cursor='';$(id).onclick=null;});
+        await refreshQueues(); render();
+        if(S.mode==='panel')buildPanel(); if(S.mode==='dims')buildDims(); if(S.mode==='uploads')buildUploads(); }
+      else { ['destPath','destPath2'].forEach(id=>$(id).textContent='Reconnect denied — use Choose folder.'); }
     };
+    offerOn(['destPath','destPath2'], ih.name, reconn);
   }
   if(ADMIN){
     const mh=await hGet('masters');
     if(mh){
-      $('mastPath').textContent='↻ Reconnect to “'+mh.name+'” (click)';
-      $('mastPath').classList.remove('none'); $('mastPath').style.cursor='pointer';
-      $('mastPath').onclick=async()=>{
-        if(await ensurePerm(mh)){ setMasters(mh); $('mastPath').style.cursor=''; $('mastPath').onclick=null; if(S.mode==='masters')buildMasters(); }
-        else { $('mastPath').textContent='Reconnect denied — use Choose folder.'; }
+      const reconnM=async()=>{
+        if(await ensurePerm(mh)){ setMasters(mh);
+          ['mastPath','mastPath2'].forEach(id=>{$(id).style.cursor='';$(id).onclick=null;});
+          if(S.mode==='masters')buildMasters(); if(S.mode==='dims')buildDims(); }
+        else { ['mastPath','mastPath2'].forEach(id=>$(id).textContent='Reconnect denied — use Choose folder.'); }
       };
+      offerOn(['mastPath','mastPath2'], mh.name, reconnM);
     }
   }
 }
@@ -1258,7 +1292,9 @@ function setMode(m){
   $('mastArea').style.display=(m==='masters')?'block':'none';
   $('dimsArea').style.display=(m==='dims')?'block':'none';
   $('upArea').style.display=(m==='uploads')?'block':'none';
-  document.querySelector('.card').style.display=(m==='shoot'||m==='edit')?'block':'none';
+  const working=(m==='shoot'||m==='edit');
+  document.querySelector('.card').style.display=working?'block':'none';
+  $('folderBar').style.display=working?'none':'block';
   refreshQueues();
   if(m==='panel') buildPanel();
   if(m==='masters') buildMasters();
