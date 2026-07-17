@@ -190,6 +190,10 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 #doRO .rrow{font:600 13px var(--mono);padding:6px 0;border-bottom:1px dashed var(--border)}
 #doRO .rrow b{display:inline-block;min-width:120px;color:var(--muted)}
 #doRO .rrow .m{color:var(--muted);font-weight:500;font-size:11px;margin-left:8px}
+#phDims{margin-top:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);font:600 12px var(--mono);display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+#phDims .lbl{font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+#phDims .d b{color:var(--muted);font-weight:650;margin-right:4px}
+#phDims .pend{color:var(--terracotta);font-weight:600}
 </style>
 </head>
 <body class="locked">
@@ -235,6 +239,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <button class="small" id="pickMast">Choose folder</button>
   </div>
   <div id="prodHead"><img id="phImg" alt=""><img id="phOri" alt="" style="display:none"><img id="phVar" class="zoomable" alt="" style="display:none"><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div><div class="ph-msg" id="phVarLbl" style="color:var(--teal);display:none"></div></div></div>
+  <div id="phDims" style="display:none"></div>
   <div class="hint" style="margin-top:8px" id="cfgNote">Loading register…</div>
 </div>
 
@@ -1152,6 +1157,24 @@ async function updateProdHead(){
   $('phVarLbl').style.display=vurl?'block':'none';
   if(vurl) $('phVarLbl').textContent='Match this variant: '+vsel;
   $('prodHead').style.display='flex';
+  // dims reference strip (read-only, for making dimension images)
+  const pd=$('phDims');
+  if(!S.root){ pd.style.display='none'; }
+  else{
+    const ex=await readDimsFile(id); 
+    if(!ex){ pd.style.display='none'; }
+    else{
+      const dm=ex.dims_m||{}, im=ex.image_dims_m||{};
+      const D=(k,v)=>(v!=null&&v!=='')?('<span class="d"><b>'+k+'</b>'+cmin(v)+'</span>'):'';
+      let body=D('W',dm.w)+D('D',dm.d)+D('H',dm.h)+D('Seat D',dm.seat_depth)
+             +D('Seat H',im.seat_height)+D('F2B',im.f2b_depth)+D('Platform',im.platform_height);
+      const tag = ex.status==='approved'
+        ? '<span class="lbl">Dims (cm · in)</span>'
+        : '<span class="lbl">Dims</span><span class="pend">pending admin approval — may change</span>';
+      pd.innerHTML= body ? (tag+body) : '';
+      pd.style.display= body ? 'flex' : 'none';
+    }
+  }
 }
 function orientationRef(pidStr){
   if(/(^|-)corner(-|$)/.test(pidStr)) return {src:'refs/orientation-corner.jpg', t:'Corner sofa — LHS vs RHS'};
