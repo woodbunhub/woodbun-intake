@@ -103,14 +103,6 @@ body.admin .dest.adminonly{display:flex !important}
   .rcard textarea{font:13px var(--sans);border:1px solid var(--border);border-radius:6px;padding:7px;resize:vertical;min-height:44px;width:100%}
   .rcard textarea:focus{outline:2px solid var(--terracotta);outline-offset:-1px}
   .rcard.hasnote{border-color:var(--terracotta);background:var(--miss-bg)}
-  /* v14: slots with no image still get a review card so admin can comment on them */
-  .rcard.rgap{border-style:dashed}
-  .rcard .rmiss{width:100%;height:150px;border-radius:6px;background:var(--panel);border:1px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;text-align:center;padding:8px}
-  .rcard .rmiss b{font:650 12px var(--sans);color:var(--terracotta)}
-  .rcard .rmiss span{font:11px var(--sans);color:var(--muted);line-height:1.35}
-  .rcard .ropt{font:600 10px var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
-  .revsum{font:13px var(--sans);color:var(--muted);margin-bottom:10px}
-  .revsum b{color:var(--terracotta)}
 
   .bottom{position:sticky;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:13px 18px;margin:22px -18px -96px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
   .status{font-size:13px;color:var(--muted);flex:1;min-width:200px}
@@ -355,8 +347,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <button class="act warn" id="revFlag">Flag for rectification</button>
       <button class="act good" id="revApprove">Approve → Masters</button>
     </div>
-    <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing — including on slots the editor left empty. Approving copies every file to <b>01_MASTERS</b>. Flagging sends the folder to the editor's <b>_INBOX/_rework</b> with your comments.</div>
-    <div class="revsum" id="revSum"></div>
+    <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing. Approving copies every file to <b>01_MASTERS</b>. Flagging sends the folder to the editor's <b>_INBOX/_rework</b> with your comments.</div>
     <div class="rgrid" id="revGrid"></div>
   </div>
 </div>
@@ -486,24 +477,6 @@ $('mOut')&&($('mOut').onclick=()=>{sessionStorage.removeItem('wb_role');location
 {const saved=sessionStorage.getItem('wb_role'); if(saved&&['admin','shoot','editor','staff'].includes(saved)) setTimeout(()=>applyRole(saved),0);}
 
 function slotKeys(){const o=[];for(const s of CLASSES[S.cls].slots){if(s.sub){const e=S.subs[s.i]||0;if(!e)o.push({...s,key:pad(s.i)});else for(let j=0;j<e;j++)o.push({...s,key:pad(s.i)+'abcdef'[j]});}else o.push({...s,key:pad(s.i)});}return o;}
-/* v14: the same slot expansion, but for an arbitrary class rather than the one
-   currently selected in the editor. Used by review, where the admin is looking at
-   somebody else's product. extraKeys are sub-slot keys actually found on disk
-   (07a, 07b …) so lettered extras that exist still get a card. Numbering is read
-   from the class definition and never re-sequenced — 05 is 05 even if 04 is absent. */
-function slotKeysFor(cls,extraKeys){
-  const out=[],C=CLASSES[cls]; if(!C||!C.slots) return out;
-  const seen={};
-  (extraKeys||[]).forEach(k=>{const m=/^(\d{2})([a-f])$/.exec(k);
-    if(m){const i=parseInt(m[1],10); seen[i]=Math.max(seen[i]||0,m[2].charCodeAt(0)-96);}});
-  for(const s of C.slots){
-    if(s.sub){ const e=seen[s.i]||0;
-      if(!e) out.push({...s,key:pad(s.i)});
-      else for(let j=0;j<e;j++) out.push({...s,key:pad(s.i)+'abcdef'[j]});
-    } else out.push({...s,key:pad(s.i)});
-  }
-  return out;
-}
 const fname=(sk,ext)=>pid()+'__'+fab()+'__'+sk.key+'__'+sk.k+'.'+(ext||'jpg');
 const relDir=()=>S.cls+'/'+pid()+'/'+fab()+'/';
 
@@ -1418,63 +1391,23 @@ $('mvDone').onclick=async()=>{
 
 /* ---------- review ---------- */
 async function openReview(it){
-  S.revItem=it; S.revFiles={}; S.revMissing=[];
+  S.revItem=it; S.revFiles={};
   $('revDetail').style.display='block';
   $('revTitle').textContent=it.pid+' · '+it.cls+' · '+it.fab;
   const g=$('revGrid'); g.innerHTML='<div class="qempty">Loading…</div>';
   const files=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));
-
-  // map what is actually on disk, keyed by slot number (05, 07a …)
-  const onDisk={};
+  g.innerHTML='';
   for(const f of files){
+    const file=await f.handle.getFile(); const url=URL.createObjectURL(file);
     const m=f.name.match(/__(\d{2}[a-f]?)__([a-z-]+)\./i);
-    const key=m?m[1]:f.name;
-    onDisk[key]={handle:f.handle,name:f.name,lbl:m?m[2]:''};
-  }
-  // v14: render one card per EXPECTED slot, not per file on disk, so the admin can
-  // leave a comment on an image the editor never uploaded. Any file that does not
-  // match a known slot is still shown, at the end, so nothing is hidden.
-  const expected=slotKeysFor(it.cls,Object.keys(onDisk));
-  const known={}; expected.forEach(sk=>known[sk.key]=1);
-  const orphans=Object.keys(onDisk).filter(k=>!known[k]).sort();
-
-  const mkCard=(key,lbl,rec,sk)=>{
-    const c=document.createElement('div');
-    c.className='rcard'+(rec?'':' rgap');
-    const opt=sk&&sk.opt;
-    const head='<div class="rn">'+key+(lbl?' · '+lbl:'')+(opt?'<span class="ropt"> · optional</span>':'')+'</div>';
-    if(rec){
-      const url=URL.createObjectURL(rec.file);
-      c.innerHTML='<img src="'+url+'">'+head+'<textarea placeholder="Leave a comment only if this image must be redone" data-k="'+key+'"></textarea>';
-      c.querySelector('img').onclick=()=>lightbox(url,key+' · '+lbl,'');
-    } else {
-      c.innerHTML='<div class="rmiss"><b>Not uploaded</b><span>'+((sk&&sk.t)||'')+(opt?'<br>optional slot':'')+'</span></div>'+head+
-                  '<textarea placeholder="Comment on the missing image — e.g. what is needed, or when" data-k="'+key+'"></textarea>';
-    }
+    const key=m?m[1]:f.name, lbl=m?m[2]:'';
+    const c=document.createElement('div'); c.className='rcard';
+    c.innerHTML='<img src="'+url+'"><div class="rn">'+key+' · '+lbl+'</div><textarea placeholder="Leave a comment only if this image must be redone" data-k="'+key+'"></textarea>';
+    c.querySelector('img').onclick=()=>lightbox(url,key+' · '+lbl,'');
     const ta=c.querySelector('textarea');
     ta.oninput=()=>{ const v=ta.value.trim(); if(v)S.revFiles[key]=v; else delete S.revFiles[key]; c.classList.toggle('hasnote',!!v); };
-    return c;
-  };
-
-  g.innerHTML='';
-  const missReq=[];
-  for(const sk of expected){
-    const d=onDisk[sk.key];
-    let rec=null;
-    if(d) rec={file:await d.handle.getFile()};
-    else if(!sk.opt) missReq.push(sk.key);
-    g.appendChild(mkCard(sk.key,d?d.lbl:(sk.k||''),rec,sk));
+    g.appendChild(c);
   }
-  for(const key of orphans){
-    const d=onDisk[key];
-    g.appendChild(mkCard(key,d.lbl,{file:await d.handle.getFile()},null));
-  }
-  S.revMissing=missReq;
-
-  const sum=$('revSum');
-  if(sum) sum.innerHTML = missReq.length
-    ? 'Incomplete set — <b>'+missReq.length+'</b> required image(s) not uploaded: <b>'+missReq.join(', ')+'</b>. You can comment on them, flag the set back, or approve as-is.'
-    : 'All required images present.';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 $('revBack').onclick=()=>{$('revDetail').style.display='none';S.revItem=null;};
@@ -1482,10 +1415,6 @@ $('revApprove').onclick=async()=>{
   if(!S.revItem)return;
   if(!S.masters){alert('Choose the 01_MASTERS folder first — approving copies the files there.');return;}
   if(Object.keys(S.revFiles).length && !confirm('You left comments. Approve anyway and ignore them?'))return;
-  // v14: approving an incomplete set is ALLOWED (owner ruling 2026-08-06). This is a
-  // read-back, not a gate — 01_MASTERS feeds everything downstream, so the admin is
-  // told what is going in short. Cancel here changes nothing.
-  if((S.revMissing||[]).length && !confirm('This set is incomplete — '+S.revMissing.length+' required image(s) never uploaded ('+S.revMissing.join(', ')+').\n\nApprove to 01_MASTERS anyway?'))return;
   await approveItem(S.revItem);
   await markApproved(S.revItem);
   $('status').className='status ok'; $('status').textContent='Approved — '+S.revItem.pid+' · '+S.revItem.fab+' moved to 01_MASTERS.';
@@ -1512,9 +1441,7 @@ function render(){
     const note=S.notes[sk.key];
     d.className='slot'+(sk.opt?' opt':' req')+(has?' filled':'')+((note&&!has)?' flagged':'');
     let h='<div class="n">'+sk.key+(has?' ✓':'')+'</div><div class="t">'+sk.t+'</div><div class="bg">'+sk.bg+'</div>';
-    // v14: a comment on a slot that has no image is not a "redo" — it is an instruction
-    // for an image that was never uploaded. Label it for what it is.
-    if(note) h+='<div class="note"><b>'+(has?'Redo — comment':'Missing — comment')+'</b>'+note+'</div>';
+    if(note) h+='<div class="note"><b>Redo — comment</b>'+note+'</div>';
     h+='<div class="why">'+sk.why+'</div>';
     const rp='refs/'+S.cls+'-'+pad(sk.i)+'.jpg';
     h+='<div class="reflabel">Reference</div><div class="refwrap" data-ref="'+rp+'" data-t="'+sk.t+'" data-w="'+sk.why+'"><img src="'+rp+'" onerror="this.parentNode.previousElementSibling.style.display=\'none\';this.parentNode.style.display=\'none\'"><span class="zoom">Click to enlarge</span></div>';
@@ -1561,9 +1488,8 @@ function progress(){
   else if(redo.length){ st.className='status err'; st.textContent='Still to redo: '+redo.join(', ')+' — replace them, then Send for review.'; }
   else if(missing.length){
     st.className='status err';
-    // v14: missing images are reported but no longer block Send for review.
-    st.textContent=(S.mode==='shoot'?'Not shot yet: ':'Not uploaded: ')+missing.join(', ')+(S.mode==='shoot'?'  —  fix before the piece leaves the studio.':'  —  you can still Send for review; the admin will see these as empty slots.');
-
+    st.textContent=(S.mode==='shoot'?'Not shot yet: ':'Not uploaded: ')+missing.join(', ')+(S.mode==='shoot'?'  —  fix before the piece leaves the studio.':'');
+    
   } else { st.className='status ok'; st.textContent=S.mode==='shoot'?'All required shots captured — save the coverage record.':'All images saved. Send for review when you are done.'; }
   $('save').textContent=S.mode==='shoot'?'Save coverage + dimensions':(S.ready?'Sent ✓ — Send again':'Send for review');
 }
@@ -1594,19 +1520,12 @@ async function sendForReview(){
   const probs=[];
   if(!id) probs.push('no product selected');
   if(!f) probs.push('no variant selected');
-  // v14 (owner ruling 2026-08-06): a partial set may be sent for review.
-  // Missing images no longer block — they are reported, and the admin can
-  // comment on the empty slots at review. Slot numbering is untouched:
-  // 05 stays 05 whether or not 04 was ever uploaded.
   const missing=id&&f?reqKeys().filter(k=>!S.files[k]):[];
-  // A redo comment still blocks ONLY where the image actually exists — i.e. the
-  // pre-v14 case of "you were told to replace this file and haven't". A comment
-  // left on a slot that has no image cannot be a blocker, or the editor could
-  // never return an incomplete set.
-  const redo=Object.keys(S.notes).filter(k=>!redoneMap()[k]&&S.files[k]);
+  if(missing.length) probs.push('missing images: '+missing.join(', '));
+  const redo=Object.keys(S.notes).filter(k=>!redoneMap()[k]);
   if(redo.length) probs.push('still to redo: '+redo.join(', '));
   if(probs.length){
-    [...redo].forEach(k=>{
+    [...missing,...redo].forEach(k=>{
       const inp=document.querySelector('.drop input[data-k="'+k+'"]');
       if(inp){ const card=inp.closest('.slot'); if(card) card.classList.add('missing'); }
     });
@@ -1631,8 +1550,7 @@ async function sendForReview(){
   await writeJSON(td,'manifest.json',man);
   await writeJSON(td,'READY.json',{sent:new Date().toISOString(),by:ROLE});
   S.ready=true; S.notes={}; S.flagMsg='';
-  $('status').className='status ok';
-  $('status').textContent='Sent for review — '+id+' · '+f+'.'+(missing.length?'  Sent incomplete: '+missing.join(', ')+' not uploaded — the admin can comment on those slots.':'');
+  $('status').className='status ok'; $('status').textContent='Sent for review — '+id+' · '+f+'.';
   await refreshQueues(); render();
 }
 
