@@ -213,6 +213,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 #phDims .d b{color:var(--muted);font-weight:650;margin-right:4px}
 #phDims .pend{color:var(--terracotta);font-weight:600}
 .status.warn{background:#fef3c7;border-color:#d9a72a;color:#7a4d00}
+.dupwarn{background:#fef3c7;border:1px solid #d9a72a;color:#7a4d00;border-radius:8px;padding:10px 12px;margin-bottom:10px;font:600 12.5px var(--sans);line-height:1.5}
 #errBar{display:none;background:#7f1d1d;color:#fff;border-radius:9px;padding:11px 14px;margin-bottom:14px;font:600 13px var(--sans);line-height:1.45}
 </style>
 </head>
@@ -480,7 +481,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.0';
+const APP_VERSION='v15.1';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1077,6 +1078,32 @@ async function loadExisting(){
    the same message is then shown as a warning and the file is still accepted. */
 const IMG_SIDE=2048, IMG_MIN_BYTES=200*1024, IMG_MAX_BYTES=3.5*1024*1024;
 const HARD_DIMS=true;
+/* ===== v15.1: the same photograph in two slots =====
+   astra-queen shipped with 07 and 07b as the identical file and it was not caught at
+   review. Size equality is the cheap test; a SHA-256 of the bytes confirms it. Soft
+   warning only — two genuinely different shots can never collide on a hash. */
+async function sha256File(file){
+  try{ const buf=await file.arrayBuffer();
+       const d=await crypto.subtle.digest('SHA-256',buf);
+       return [...new Uint8Array(d)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+  catch(e){ return null; }
+}
+async function findIdenticalInFolder(dirHandle,file,ignoreName){
+  /* returns the name of an existing file with identical bytes, or null */
+  try{
+    const cands=[];
+    for(const f of await listFiles(dirHandle)){
+      if(f.name===ignoreName) continue;
+      if(!/\.(jpg|jpeg|png|webp)$/i.test(f.name)) continue;
+      const ex=await f.handle.getFile();
+      if(ex.size===file.size) cands.push({name:f.name,file:ex});
+    }
+    if(!cands.length) return null;
+    const mine=await sha256File(file); if(!mine) return cands[0].name;
+    for(const c of cands){ if(await sha256File(c.file)===mine) return c.name; }
+    return null;
+  }catch(e){ return null; }
+}
 async function validateImage(file){
   const errs=[], warns=[]; const nm=(file.name||'').toLowerCase();
   const isJpeg = (file.type==='image/jpeg') || /\.jpe?g$/.test(nm);
@@ -1109,6 +1136,10 @@ async function putSlot(key,file){
   }
   try{
     const {dir:td}=await workDir(pid(),fab(),true);
+    /* v15.1: is this the same photograph as one already in the set? */
+    let dupOf=null;
+    try{ dupOf=await findIdenticalInFolder(td,file,fname(sk,(file.name.split('.').pop()||'jpg').toLowerCase())); }catch(e){}
+    if(dupOf) vr.warns.push('This is the SAME image as '+dupOf+' — check you have not uploaded one photograph into two slots.');
     const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
     for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
@@ -1584,9 +1615,18 @@ async function openReview(it){
   S.revMissing=missReq;
 
   const sum=$('revSum');
-  if(sum) sum.innerHTML = missReq.length
-    ? 'Incomplete set — <b>'+missReq.length+'</b> required image(s) not uploaded: <b>'+missReq.join(', ')+'</b>. You can comment on them, flag the set back, or approve as-is.'
-    : 'All required images present.';
+  if(sum){
+    /* v15.1: the duplicate-photograph warning sits ABOVE the completeness line,
+       because it is the one that has actually reached masters unnoticed. */
+    const dupHtml=(S.revDupes&&S.revDupes.length)
+      ? '<div class="dupwarn"><b>The same photograph appears in more than one slot:</b> '+
+        S.revDupes.map(g=>esc(g.join('  =  '))).join(' &nbsp;·&nbsp; ')+
+        '. Usually one image uploaded twice — check before approving.</div>'
+      : '';
+    sum.innerHTML = dupHtml + (missReq.length
+      ? 'Incomplete set — <b>'+missReq.length+'</b> required image(s) not uploaded: <b>'+missReq.join(', ')+'</b>. You can comment on them, flag the set back, or approve as-is.'
+      : 'All required images present.');
+  }
   window.scrollTo({top:0,behavior:'smooth'});
 }
 $('revBack').onclick=()=>{$('revDetail').style.display='none';{const lc=$('revListCard'); if(lc) lc.style.display='block';}S.revItem=null;};
@@ -1594,6 +1634,7 @@ $('revApprove').onclick=async()=>{
   if(!S.revItem)return;
   if(!S.masters){alert('Choose the 01_MASTERS folder first — approving copies the files there.');return;}
   if(Object.keys(S.revFiles).length && !confirm('You left comments. Approve anyway and ignore them?'))return;
+  if((S.revDupes||[]).length && !confirm('The same photograph appears in more than one slot:\n\n'+S.revDupes.map(g=>g.join('  =  ')).join('\n')+'\n\nApprove to 01_MASTERS anyway?'))return;
   // v14: approving an incomplete set is ALLOWED (owner ruling 2026-08-06). This is a
   // read-back, not a gate — 01_MASTERS feeds everything downstream, so the admin is
   // told what is going in short. Cancel here changes nothing.
