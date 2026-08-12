@@ -4,7 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Woodbun — Image Intake</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* v15.2 (D): the spreadsheet component used to be pulled from a public CDN on every
+   load, unchecked, into a page that can read and delete every file in Woodbun Assets.
+   It is now loaded from YOUR OWN repository first — put xlsx.full.min.js next to
+   index.html and nobody else's server is in the path, and the tool works offline.
+   The CDN stays only as a fallback for as long as that file is missing. */
+window.XLSX_SRC=null;
+window.XLSX_READY=new Promise(function(res){
+  function tag(src,next){
+    var el=document.createElement('script');
+    el.src=src;
+    el.onload=function(){ window.XLSX_SRC=src; res(src); };
+    el.onerror=function(){ if(next) next(); else res(null); };
+    document.head.appendChild(el);
+  }
+  tag('xlsx.full.min.js', function(){
+    tag('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', null);
+  });
+});
+async function xlsxReady(){
+  await window.XLSX_READY;
+  if(typeof XLSX==='undefined') throw new Error('the spreadsheet component could not be loaded — put xlsx.full.min.js next to index.html, or check the connection');
+  return XLSX;
+}
+</script>
 <style>
   :root{
     --espresso:#2B2118; --teal:#3C7E70; --terracotta:#D9722A;
@@ -85,6 +109,17 @@ body.admin .dest.adminonly{display:flex !important}
   .check{display:flex;align-items:center;gap:9px;cursor:pointer;padding:5px 0}
   .check input{width:19px;height:19px;min-width:19px;accent-color:var(--teal);cursor:pointer}
   .tools{display:flex;gap:6px;flex-wrap:wrap}
+  .chist{border:1px solid var(--border);border-radius:6px;background:var(--panel);padding:0 8px}
+  .chist summary{cursor:pointer;font:11px/2.1 var(--sans);color:var(--muted);list-style:none}
+  .chist summary::-webkit-details-marker{display:none}
+  .chist summary:before{content:'▸ ';color:var(--teal)}
+  .chist[open] summary:before{content:'▾ '}
+  .chist .che{font:11px/1.5 var(--sans);color:var(--ink);border-top:1px solid var(--border);padding:6px 0}
+  .chist .chr{display:block;font:10px/1.6 var(--mono);color:var(--teal);letter-spacing:.04em}
+  .slot.lockedslot{border-color:#9fd3ba;background:linear-gradient(180deg,#f2faf5,transparent)}
+  .drop.lockview{cursor:zoom-in;border-color:#9fd3ba;background:#fff}
+  .acclock{font:11px/1.5 var(--sans);color:#245c40;background:#e6f4ec;border:1px solid #9fd3ba;border-radius:6px;padding:6px 8px}
+  .acclock b{color:#12492f}
 
   /* queue */
   .queue{display:flex;flex-direction:column;gap:8px}
@@ -214,6 +249,18 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 #phDims .pend{color:var(--terracotta);font-weight:600}
 .status.warn{background:#fef3c7;border-color:#d9a72a;color:#7a4d00}
 .dupwarn{background:#fef3c7;border:1px solid #d9a72a;color:#7a4d00;border-radius:8px;padding:10px 12px;margin-bottom:10px;font:600 12.5px var(--sans);line-height:1.5}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.mcell{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column}
+.mcell img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;cursor:zoom-in;background:#fff}
+.mcell .mn{font:600 11px var(--mono);padding:7px 9px;color:var(--espresso);word-break:break-all;line-height:1.4}
+.mcell .ms{font:600 10px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:0 9px 8px}
+.mcount{font:600 12px var(--mono);color:var(--muted)}
+.mgrouphd{grid-column:1/-1;font:650 13px var(--sans);color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin-top:6px}
+.rtick{display:flex;align-items:center;gap:7px;font:600 12px var(--sans);color:var(--espresso);padding:6px 2px;cursor:pointer}
+.rtick input{width:15px;height:15px;cursor:pointer}
+.rcard.rpick{border-color:var(--teal);box-shadow:0 0 0 2px rgba(84,166,148,.3)}
+.rcard.rlocked{opacity:.72}
+.racc{font:600 11.5px var(--sans);color:#1f6f4a;background:#e6f4ec;border:1px solid #9fd3ba;border-radius:7px;padding:6px 9px;margin:2px 0}
 #errBar{display:none;background:#7f1d1d;color:#fff;border-radius:9px;padding:11px 14px;margin-bottom:14px;font:600 13px var(--sans);line-height:1.45}
 </style>
 </head>
@@ -316,8 +363,15 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 </div>
 <div id="mastArea" style="display:none">
   <div class="card"><h2>Approved masters</h2>
-  <div class="hint" style="margin-bottom:10px">Click a product to open the viewer. ← → arrow keys move between images; the last image of a product flows into the next. Recall sends a product's images back to the editor with your comment.</div>
-  <div class="prow-list" id="mlist"><div class="qempty">Choose the 01_MASTERS folder first.</div></div></div>
+  <div class="hint" style="margin-bottom:10px">Pick a class and product to see every approved image at once, at the size it was uploaded. Click any image to open the full viewer — ← → move between images, and Recall sends a product back to the editor.</div>
+  <div class="row" style="margin-bottom:12px">
+    <div class="f"><label>Class</label><select id="mSelCls"><option value="">— all —</option></select></div>
+    <div class="f"><label>Product</label><select id="mSelPid"><option value="">— pick a product —</option></select></div>
+    <div class="f"><label>Variant</label><select id="mSelFab"><option value="">— all —</option></select></div>
+    <div style="flex:1"></div>
+    <div class="f" style="align-self:flex-end"><span class="mcount" id="mCount"></span></div>
+  </div>
+  <div class="mgrid" id="mgrid"><div class="qempty">Choose the 01_MASTERS folder first.</div></div></div>
 </div>
 <div id="dimsArea" style="display:none">
   <div class="card"><h2>Dimensions — waiting for approval</h2>
@@ -380,13 +434,14 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 
 <div id="revArea" style="display:none">
   <div class="card" id="revListCard">
-    <h2>Awaiting review</h2>
+    <h2>Awaiting review <button class="small" id="revRefresh" style="float:right;font-weight:400">↻ Refresh</button></h2>
     <div class="queue" id="revQueue"></div>
   </div>
   <div class="card" id="revDetail" style="display:none">
     <div class="row" style="margin-bottom:12px">
       <div class="f" style="flex:1"><label>Reviewing</label><div class="code" id="revTitle">—</div></div>
       <button class="act ghost" id="revBack">Back to queue</button>
+      <button class="act ghost" id="revAccept">Accept ticked</button>
       <button class="act warn" id="revFlag">Flag for rectification</button>
       <button class="act good" id="revApprove">Approve → Masters</button>
     </div>
@@ -481,7 +536,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.1';
+const APP_VERSION='v15.2';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -590,6 +645,7 @@ $('fFin').onchange=()=>render();
 $('loadReg').onclick=()=>{
   const i=document.createElement('input'); i.type='file'; i.accept='.xlsx';
   i.onchange=async e=>{
+    try{ await xlsxReady(); }catch(err){ wbFail('Could not read the register file', err); return; }
     const buf=await e.target.files[0].arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
     const G=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n]):[];
@@ -686,6 +742,7 @@ async function loadRegister(){
     }catch(e){}
   }
   try{
+    await xlsxReady();
     const buf=await (await fetch('register.xlsx')).arrayBuffer();
     const wb=XLSX.read(buf,{type:'array'});
     const G=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n]):[];
@@ -699,7 +756,14 @@ async function loadRegister(){
 /* ---------- filesystem ---------- */
 async function dirFor(root,parts,create){let d=root;for(const p of parts){d=await d.getDirectoryHandle(p,{create:!!create});}return d;}
 async function listFiles(h){const o=[];for await(const [n,fh] of h.entries()){if(fh.kind==='file')o.push({name:n,handle:fh});}return o;}
+/* v15.2 (D): the folder tree is read once and remembered. Every write path calls
+   invalidateWalk(), and the Review screen has a Refresh button, so nothing here can
+   go stale silently. At 14 products this is invisible; at 145 on a cloud-streamed
+   drive it is the difference between instant and a crawl. */
+let WALKC={pending:null,rework:null};
+function invalidateWalk(){ WALKC={pending:null,rework:null}; }
 async function walk(lane){ // lane: 'pending' | 'rework'  → [{cls,pid,fab,handle}]
+  if(WALKC[lane]) return WALKC[lane];
   const out=[]; if(!S.root) return out;
   let b;
   try{
@@ -710,15 +774,19 @@ async function walk(lane){ // lane: 'pending' | 'rework'  → [{cls,pid,fab,hand
     if(lane==='pending' && c==='_rework') continue; // rework lives under _INBOX but is a separate lane
     for await(const [p,ph] of ch.entries()){ if(ph.kind!=='directory')continue;
       for await(const [f,fh] of ph.entries()){ if(fh.kind!=='directory')continue; out.push({cls:c,pid:p,fab:f,handle:fh}); } } }
+  WALKC[lane]=out;
   return out;
 }
-async function copyInto(src,dst){
-    /* v15 (A2): copy, remember what we sent, and name any write that fails. */
+async function copyInto(src,dst,stripLock){
+    /* v15 (A2): copy, remember what we sent, and name any write that fails.
+       v15.1 (C2): stripLock removes the .LOCKED marker as files enter masters. */
     const want={};
     for(const f of await listFiles(src)){
-      const file=await f.handle.getFile(); want[f.name]=file.size;
-      try{ const h=await dst.getFileHandle(f.name,{create:true}); const w=await h.createWritable(); await w.write(file); await w.close(); }
-      catch(e){ throw new Error('could not write '+f.name+' — '+e.message); }
+      const file=await f.handle.getFile();
+      const out=stripLock? unlockedName(f.name) : f.name;
+      want[out]=file.size;
+      try{ const h=await dst.getFileHandle(out,{create:true}); const w=await h.createWritable(); await w.write(file); await w.close(); }
+      catch(e){ throw new Error('could not write '+out+' — '+e.message); }
     }
     return want;
   }
@@ -737,9 +805,10 @@ async function copyInto(src,dst){
     }
   }
 async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admin-only)
+  invalidateWalk();
   const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
   const dst=await dirFor(S.masters,[it.cls,it.pid,it.fab],true);
-  const want=await copyInto(src,dst);
+  const want=await copyInto(src,dst,true);  // v15.1 (C2): drop the .LOCKED marker on entry
   await verifyCopy(want,dst);              // v15 (A2): prove it, THEN delete
   try{await dst.removeEntry('READY.json');}catch(e){}  // v15 (D): masters holds photographs, not queue paperwork
   try{                                     // carry the shoot record up with it
@@ -756,6 +825,7 @@ async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admi
   await parent.removeEntry(it.fab,{recursive:true});
 }
 async function flagItem(it){              // _INBOX -> _INBOX/_rework (editor-visible)
+  invalidateWalk();
   const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
   const dst=await dirFor(S.root,['_INBOX','_rework',it.cls,it.pid,it.fab],true);
   const want=await copyInto(src,dst);
@@ -765,6 +835,43 @@ async function flagItem(it){              // _INBOX -> _INBOX/_rework (editor-vi
   await parent.removeEntry(it.fab,{recursive:true});
 }
 async function writeJSON(dirHandle,name,obj){const h=await dirHandle.getFileHandle(name,{create:true});const w=await h.createWritable();await w.write(JSON.stringify(obj,null,2));await w.close();}
+
+/* ---- v15.2 (C1): comment history ------------------------------------------
+   notes.json now carries THREE things:
+     comments / message  — the LIVE round, exactly as before
+     history[]           — every round that has already closed, oldest first
+   A round closes when the editor re-sends the set (graduation). Nothing a
+   reviewer wrote is ever overwritten again. Files written by earlier versions
+   have no history key; they simply start with an empty one. */
+async function readNotes(dirHandle){
+  try{ const h=await dirHandle.getFileHandle('notes.json');
+       const o=JSON.parse(await (await h.getFile()).text());
+       return (o&&typeof o==='object')?o:{}; }
+  catch(e){ return {}; }
+}
+function foldLive(notes){                 // close the live round into history
+  const h=((notes&&notes.history)||[]).slice();
+  const live=(notes&&notes.comments)||{};
+  const msg=(notes&&notes.message)||'';
+  if(Object.keys(live).length||msg)
+    h.push({round:h.length+1,at:(notes&&(notes.flagged_at||notes.recalled_at))||'',comments:live,message:msg});
+  return h;
+}
+function histOf(notes){                   // slot key -> [{round,at,text}] newest first
+  const out={};
+  ((notes&&notes.history)||[]).forEach(r=>{
+    const c=r.comments||{};
+    Object.keys(c).forEach(k=>{ (out[k]=out[k]||[]).push({round:r.round||0,at:r.at||'',text:String(c[k]||'')}); });
+  });
+  Object.keys(out).forEach(k=>out[k].sort((a,b)=>(b.round||0)-(a.round||0)));
+  return out;
+}
+function histHTML(list){
+  if(!list||!list.length) return '';
+  return '<details class="chist"><summary>'+list.length+' earlier comment'+(list.length>1?'s':'')+' on this image</summary>'+
+    list.map(e=>'<div class="che"><span class="chr">Round '+e.round+(e.at?' · '+esc(String(e.at).slice(0,10)):'')+'</span>'+esc(e.text)+'</div>').join('')+
+    '</details>';
+}
 
 /* ---- v6: remembered folder handles (one-click reconnect) ---- */
 function hdb(){return new Promise((res,rej)=>{const r=indexedDB.open('wb_handles',1);
@@ -805,6 +912,7 @@ async function chooseMasters(){
     if(S.mode==='masters')buildMasters();
   }catch(e){}
 }
+['mSelCls','mSelPid','mSelFab'].forEach(id=>{ const el=$(id); if(el) el.onchange=()=>{ if(id==='mSelCls') $('mSelPid').value=''; buildMasters(); }; });
 $('pickMast').onclick=chooseMasters;
 $('pickMast2').onclick=chooseMasters;
 /* offer reconnect on load, once a role is active */
@@ -840,7 +948,16 @@ async function offerReconnect(){
 }
 
 async function refreshQueues(){
-  const pend=await walk('pending'), flg=await walk('rework');
+  const pend=await walk('pending');
+  /* v15.2 (D): a set is in the rework lane only if it holds PHOTOGRAPHS. A folder
+     left behind holding nothing but notes.json used to count, so finished products
+     reappeared as outstanding. */
+  const flg=[];
+  for(const it of await walk('rework')){
+    try{ const fs=await listFiles(it.handle);
+         if(fs.some(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name))) flg.push(it); }
+    catch(e){}
+  }
   for(const it of pend){ try{ await it.handle.getFileHandle('READY.json'); it.ready=true; }catch(e){ it.ready=false; } }
   const ready=pend.filter(x=>x.ready);
   $('revPill').textContent=ready.length; $('revPill').style.display=ready.length?'inline-block':'none';
@@ -879,6 +996,7 @@ async function openFlagged(it,notes){
   await loadExisting();
   $('status').className='status err';
   $('status').textContent='Replace the commented images (they save instantly), then Send for review.';
+  updateAcceptBtn();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -892,8 +1010,17 @@ async function writeStatus(st){
   S._statusCache=st;
 }
 async function markApproved(it){
+  /* v15.2 (D): read fresh (never the cache), fold out any repeats already in the
+     file, and record this approval once. Approving the same set twice updates the
+     date instead of adding a second line. */
   const st=await readStatus();
-  st.approved=st.approved||[]; st.approved.push({id:it.pid,variant:it.fab,at:new Date().toISOString()});
+  const k=x=>String(x&&x.id)+'\u0000'+String(x&&x.variant);
+  const seen={}, merged=[];
+  for(const e of (st.approved||[])){ const kk=k(e); if(seen[kk]) continue; seen[kk]=1; merged.push(e); }
+  const mine=k({id:it.pid,variant:it.fab}); const now=new Date().toISOString();
+  const hit=merged.find(e=>k(e)===mine);
+  if(hit) hit.at=now; else merged.push({id:it.pid,variant:it.fab,at:now});
+  st.approved=merged;
   await writeStatus(st);
 }
 async function toggleComplete(pid){
@@ -951,9 +1078,14 @@ async function uploadRef(pid){
     const f=e.target.files[0]; if(!f) return;
     const ext=(f.name.split('.').pop()||'jpg').toLowerCase();
     const d=await dirFor(S.root,['_REFS'],true);
-    for(const x of REF_EXTS){ try{await d.removeEntry(pid+'.'+x);}catch(err){} }
-    const h=await d.getFileHandle(pid+'.'+(REF_EXTS.includes(ext)?ext:'jpg'),{create:true});
+    /* v15.2 (D): write the new one FIRST, then drop the old. Deleting first meant a
+       failed write left the variant with no identifier photo at all. */
+    const keep=pid+'.'+(REF_EXTS.includes(ext)?ext:'jpg');
+    const h=await d.getFileHandle(keep,{create:true});
     const w=await h.createWritable(); await w.write(f); await w.close();
+    try{ await (await d.getFileHandle(keep)).getFile(); }
+    catch(err){ wbFail('The identifier photo for '+pid+' did not save — the old one is untouched', err); return; }
+    for(const x of REF_EXTS){ if(pid+'.'+x===keep) continue; try{await d.removeEntry(pid+'.'+x);}catch(err){} }
     delete S.refCache[pid]; buildPanel();
   };
   i.click();
@@ -1039,33 +1171,43 @@ function rkey(){ return pid()+'::'+fab(); }
 function redoneMap(){ const k=rkey(); return (S.redone[k]=S.redone[k]||{}); }
 async function reworkDirIfAny(id,f){
   try{ const d=await dirFor(S.root,['_INBOX','_rework',S.cls,id,f]);
-       // treat as rework only if it actually has content
-       for(const fl of await listFiles(d)){ if(fl.name) return d; }
+       /* v15.2 (D): a set is in rework only if it holds PHOTOGRAPHS. A leftover
+          notes.json was enough to put a finished product back in the rework lane. */
+       for(const fl of await listFiles(d)){ if(/\.(jpg|jpeg|png|webp)$/i.test(fl.name)) return d; }
   }catch(e){}
   return null;
 }
 async function workDir(id,f,create){
   const rw=await reworkDirIfAny(id,f);
   if(rw) return {dir:rw, rework:true};
-  return {dir:await dirFor(S.root,['_INBOX',S.cls,id,f],!!create), rework:false};
+  /* v15.2 (D): a folder is created when the first image is SAVED, never because
+     somebody looked at the product. This is where the empty-folder sprawl came from. */
+  try{ return {dir:await dirFor(S.root,['_INBOX',S.cls,id,f],!!create), rework:false}; }
+  catch(e){ if(create) throw e; return {dir:null, rework:false}; }
 }
 async function loadExisting(){
-  S.files={}; S.subs={}; S.ready=false; S.rework=false; S.notes={}; S.flagMsg='';
+  S.files={}; S.subs={}; S.ready=false; S.rework=false; S.notes={}; S.flagMsg=''; S.hist={};
   const id=pid(), f=fab();
   if(!S.root||!id||!f){ render(); return; }
-  const {dir:td, rework}=await workDir(id,f,true);
+  const {dir:td, rework}=await workDir(id,f,false);   // v15.2 (D): read-only browse
   S.rework=rework;
+  if(!td){ render(); return; }                       // nothing filed yet — nothing to create
+  /* v15.2 (C1): the history is read whether or not this set is in rework — the
+     editor should be able to look back at what was said last time even when the
+     current round is clean. */
+  const nts=await readNotes(td);
+  S.hist=histOf(nts);
   if(rework){                                   // ALWAYS re-read comments + redo-progress for THIS product+variant
-    try{const nh=await td.getFileHandle('notes.json'); const n=JSON.parse(await (await nh.getFile()).text());
-        S.notes=n.comments||{}; S.flagMsg=n.message||''; S.redone[rkey()]=n.redone||{};}catch(e){}
+    S.notes=nts.comments||{}; S.flagMsg=nts.message||''; S.redone[rkey()]=nts.redone||{};
   }
   try{
     for(const fl of await listFiles(td)){
       if(!/\.(jpg|jpeg|png|webp)$/i.test(fl.name)) continue;
       const m=fl.name.match(/__(\d{2})([a-z]?)__/); if(!m) continue;
       const key=m[1]+(m[2]||'');
+      const lk=isLocked(fl.name);
       if(m[2]){ const b=parseInt(m[1],10); S.subs[b]=Math.max(S.subs[b]||0, m[2].charCodeAt(0)-96); }
-      S.files[key]={existing:true,url:URL.createObjectURL(await fl.handle.getFile()),name:fl.name};
+      S.files[key]={existing:true,url:URL.createObjectURL(await fl.handle.getFile()),name:fl.name,locked:lk};
     }
     try{ await td.getFileHandle('READY.json'); S.ready=true; }catch(e){}
   }catch(e){}
@@ -1082,6 +1224,34 @@ const HARD_DIMS=true;
    astra-queen shipped with 07 and 07b as the identical file and it was not caught at
    review. Size equality is the cheap test; a SHA-256 of the bytes confirms it. Soft
    warning only — two genuinely different shots can never collide on a hash. */
+/* ===== v15.1 (C2): partial acceptance =====
+   Ticking an image at review renames it in place with a .LOCKED marker. It stays in the
+   inbox at full resolution so the editor can still open and study it, but the tool will
+   not let them replace or delete it. When the set is approved, the whole folder moves to
+   01_MASTERS and the marker is stripped on the way. One copy of every file at all times,
+   no new folder, and the editor never sees masters. */
+const LOCK_TAG='.LOCKED';
+function isLocked(name){ return name.indexOf(LOCK_TAG+'.')>-1; }
+function lockedName(name){ if(isLocked(name)) return name;
+  const i=name.lastIndexOf('.'); return i<0? name+LOCK_TAG : name.slice(0,i)+LOCK_TAG+name.slice(i); }
+function unlockedName(name){ return name.replace(LOCK_TAG+'.', '.'); }
+async function renameInPlace(dirHandle,from,to){
+  const fh=await dirHandle.getFileHandle(from);
+  const file=await fh.getFile();
+  const nh=await dirHandle.getFileHandle(to,{create:true});
+  const w=await nh.createWritable(); await w.write(file); await w.close();
+  const check=await (await dirHandle.getFileHandle(to)).getFile();
+  if(check.size!==file.size) throw new Error('renaming '+from+' did not land at the right size');
+  await dirHandle.removeEntry(from);           // only once the copy is proved
+}
+async function lockSlots(it,names){
+  invalidateWalk();
+  for(const nm of names){
+    if(isLocked(nm)) continue;
+    try{ await renameInPlace(it.handle,nm,lockedName(nm)); }
+    catch(e){ throw new Error('could not accept '+nm+' — '+e.message); }
+  }
+}
 async function sha256File(file){
   try{ const buf=await file.arrayBuffer();
        const d=await crypto.subtle.digest('SHA-256',buf);
@@ -1136,21 +1306,31 @@ async function putSlot(key,file){
   }
   try{
     const {dir:td}=await workDir(pid(),fab(),true);
+    /* v15.1 (C2): an accepted slot is closed. */
+    if(S.files[key] && S.files[key].locked){
+      $('status').className='status err';
+      $('status').textContent='Slot '+key+' has already been accepted by the reviewer and cannot be replaced. Ask them to release it if it must change.';
+      return;
+    }
     /* v15.1: is this the same photograph as one already in the set? */
     let dupOf=null;
     try{ dupOf=await findIdenticalInFolder(td,file,fname(sk,(file.name.split('.').pop()||'jpg').toLowerCase())); }catch(e){}
     if(dupOf) vr.warns.push('This is the SAME image as '+dupOf+' — check you have not uploaded one photograph into two slots.');
     const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
-    for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
+    for(const fl of await listFiles(td)){
+      if(isLocked(fl.name)) continue;                       // v15.1 (C2): never clear an accepted file
+      if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} }
+    }
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
     const h=await td.getFileHandle(fname(sk,ext),{create:true});
     const w=await h.createWritable(); await w.write(file); await w.close();
     try{await td.removeEntry('READY.json');}catch(e){}
-    S.ready=false;
+    S.ready=false; invalidateWalk();               // v15.2 (D)
     S.files[key]={existing:true,url:URL.createObjectURL(file),name:fname(sk,ext)};
     redoneMap()[key]=1;
     if(S.rework){ try{
-      let n={comments:S.notes,message:S.flagMsg,redone:redoneMap()};
+      const prev=await readNotes(td);
+      let n={comments:S.notes,message:S.flagMsg,redone:redoneMap(),history:(prev.history||[])};
       await writeJSON(td,'notes.json',n);
     }catch(e){} }
     render();
@@ -1160,12 +1340,28 @@ async function putSlot(key,file){
 }
 async function delSlot(key){
   const sk=slotKeys().find(x=>x.key===key); if(!sk||!S.files[key]) return;
+  /* v15.1 (C2): an accepted slot is closed to the editor. */
+  if(S.files[key].locked){
+    $('status').className='status err';
+    $('status').textContent='Slot '+key+' has been accepted by the reviewer and cannot be deleted. Ask them to release it if it must change.';
+    return;
+  }
   try{
     const {dir:td}=await workDir(pid(),fab(),false);
+    if(!td){ delete S.files[key]; render(); return; }
     const stem=fname(sk,'x'); const stem0=stem.slice(0,stem.length-2);
-    for(const fl of await listFiles(td)){ if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} } }
+    for(const fl of await listFiles(td)){
+      if(isLocked(fl.name)) continue;                       // v15.1 (C2)
+      if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} }
+    }
+    let wasReady=S.ready;
     try{await td.removeEntry('READY.json');}catch(e){} S.ready=false;
-  }catch(e){}
+    invalidateWalk();
+    if(wasReady){                                  // v15.2 (D): say so, instead of doing it silently
+      $('status').className='status warn';
+      $('status').textContent='Removed '+key+'. This set has dropped OUT of the review queue — upload the replacement, then Send for review again.';
+    }
+  }catch(e){ wbFail('Could not remove slot '+key, e); }
   delete S.files[key]; delete redoneMap()[key]; render();
 }
 /* ---- v10: staff dims (pending -> admin approve -> SHOOT.json in masters) ---- */
@@ -1479,26 +1675,75 @@ async function walkMasters(){
   return out;
 }
 async function buildMasters(){
-  const L=$('mlist');
-  if(!S.masters){L.innerHTML='<div class="qempty">Choose the 01_MASTERS folder first (folder pickers above).</div>';return;}
+  /* v15.1: browse by class + product, everything on one screen, names under each
+     image. The old chevron-by-chevron viewer is still there — clicking an image
+     opens it at that exact frame. */
+  const G=$('mgrid');
+  if(!S.masters){ G.innerHTML='<div class="qempty">Choose the 01_MASTERS folder first (folder pickers above).</div>'; $('mCount').textContent=''; return; }
   const items=await walkMasters();
-  if(!items.length){L.innerHTML='<div class="qempty">Nothing approved yet.</div>';return;}
-  L.innerHTML='';
-  const byPid={};
-  items.forEach(it=>{(byPid[it.pid]=byPid[it.pid]||[]).push(it);});
-  for(const pidk of Object.keys(byPid)){
-    const vs=byPid[pidk];
-    const u=S.root?await findRef(pidk):null;
-    const d=document.createElement('div'); d.className='prow-item';
-    d.innerHTML=thumbHtml(pidk,u)+
-      '<div class="grow"><div class="pi-id">'+pidk+'</div><div class="pi-meta">'+vs[0].cls+' · '+vs.map(v=>v.fab).join(', ')+'</div></div>'+
-      '<button class="small">View</button>';
-    d.querySelector('button').onclick=()=>openViewer(pidk);
-    L.appendChild(d);
+  if(!items.length){ G.innerHTML='<div class="qempty">Nothing approved yet.</div>'; $('mCount').textContent=''; return; }
+  MASTERS_CACHE=items;
+
+  const clsSel=$('mSelCls'), pidSel=$('mSelPid'), fabSel=$('mSelFab');
+  const classes=[...new Set(items.map(i=>i.cls))].sort();
+  if(clsSel.options.length<=1+classes.length-1 || clsSel.dataset.n!==String(classes.length)){
+    clsSel.innerHTML='<option value="">— all —</option>'+classes.map(c=>'<option>'+esc(c)+'</option>').join('');
+    clsSel.dataset.n=String(classes.length);
   }
-  wireZoom(L);
+  const cls=clsSel.value;
+  const pids=[...new Set(items.filter(i=>!cls||i.cls===cls).map(i=>i.pid))].sort();
+  const keepPid=pids.includes(pidSel.value)?pidSel.value:'';
+  pidSel.innerHTML='<option value="">— pick a product —</option>'+pids.map(p=>'<option>'+esc(p)+'</option>').join('');
+  pidSel.value=keepPid;
+  const pid_=pidSel.value;
+  const fabs=[...new Set(items.filter(i=>(!cls||i.cls===cls)&&(!pid_||i.pid===pid_)).map(i=>i.fab))].sort();
+  const keepFab=fabs.includes(fabSel.value)?fabSel.value:'';
+  fabSel.innerHTML='<option value="">— all —</option>'+fabs.map(f=>'<option>'+esc(f)+'</option>').join('');
+  fabSel.value=keepFab;
+
+  if(!pid_){
+    G.innerHTML='<div class="qempty">'+pids.length+' product(s) approved'+(cls?' in '+esc(cls):'')+'. Pick one above to see its images.</div>';
+    $('mCount').textContent=pids.length+' product(s)';
+    return;
+  }
+
+  const sel=items.filter(i=>i.pid===pid_&&(!cls||i.cls===cls)&&(!fabSel.value||i.fab===fabSel.value));
+  G.innerHTML='<div class="qempty">Loading…</div>';
+  const frag=document.createDocumentFragment();
+  let total=0;
+  for(const it of sel){
+    if(sel.length>1){
+      const hd=document.createElement('div'); hd.className='mgrouphd';
+      hd.textContent=it.cls+' · '+it.pid+' · '+it.fab; frag.appendChild(hd);
+    }
+    const files=(await listFiles(it.handle))
+      .filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name))
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    for(const f of files){
+      total++;
+      const file=await f.handle.getFile();
+      const url=URL.createObjectURL(file);
+      const mm=f.name.match(/__(\d{2}[a-f]?)__([a-z-]+)\./i);
+      const cell=document.createElement('div'); cell.className='mcell';
+      cell.innerHTML='<img src="'+url+'" alt="">'+
+        '<div class="ms">'+(mm?esc(mm[1])+' &middot; '+esc(mm[2]):'&nbsp;')+'</div>'+
+        '<div class="mn">'+esc(f.name)+'</div>';
+      cell.querySelector('img').onclick=()=>openViewerAt(it.pid,it.fab,f.name);
+      frag.appendChild(cell);
+    }
+  }
+  G.innerHTML=''; G.appendChild(frag);
+  $('mCount').textContent=total+' image(s)';
+  if(!total) G.innerHTML='<div class="qempty">No images in this selection.</div>';
 }
+let MASTERS_CACHE=[];
 let MV={flat:[],i:0,open:false};
+/* v15.1: open the full viewer at one specific image rather than at a product. */
+async function openViewerAt(pidk,fabk,name){
+  await openViewer(pidk);
+  const j=MV.flat.findIndex(e=>e.it.pid===pidk&&e.it.fab===fabk&&e.name===name);
+  if(j>-1){ MV.i=j; showMV(); }
+}
 async function openViewer(startPid){
   $('mvRecall').style.display=ADMIN?'':'none';
   $('mvDone').style.display=ADMIN?'':'none';
@@ -1541,9 +1786,11 @@ $('mvRecall').onclick=async()=>{
   const src=await dirFor(S.masters,[e.it.cls,e.it.pid,e.it.fab]);
   const dst=await dirFor(S.root,['_INBOX','_rework',e.it.cls,e.it.pid,e.it.fab],true);
   await copyInto(src,dst);
-  await writeJSON(dst,'notes.json',{recalled_at:new Date().toISOString(),message:msg.trim(),comments:{}});
+  const prevR=await readNotes(dst);           // v15.2 (C1)
+  await writeJSON(dst,'notes.json',{recalled_at:new Date().toISOString(),message:msg.trim(),comments:{},history:foldLive(prevR)});
   const parent=await dirFor(S.masters,[e.it.cls,e.it.pid]);
   await parent.removeEntry(e.it.fab,{recursive:true});
+  invalidateWalk();                                 // v15.2 (D)
   const st=await readStatus(); st.completed=(st.completed||[]).filter(x=>x!==e.it.pid); await writeStatus(st);
   MV.open=false;$('mview').classList.remove('on');
   $('status').className='status err'; $('status').textContent='Recalled '+e.it.pid+' · '+e.it.fab+' to the editor with your comment.';
@@ -1565,6 +1812,7 @@ async function openReview(it){
   {const lc=$('revListCard'); if(lc) lc.style.display='none';}
   $('revTitle').textContent=it.pid+' · '+it.cls+' · '+it.fab;
   const g=$('revGrid'); g.innerHTML='<div class="qempty">Loading…</div>';
+  S.revHist=histOf(await readNotes(it.handle));   // v15.2 (C1): what was asked for last round
   const files=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));
 
   // map what is actually on disk, keyed by slot number (05, 07a …)
@@ -1588,14 +1836,25 @@ async function openReview(it){
     const head='<div class="rn">'+key+(lbl?' · '+lbl:'')+(opt?'<span class="ropt"> · optional</span>':'')+'</div>';
     if(rec){
       const url=URL.createObjectURL(rec.file);
-      c.innerHTML='<img src="'+url+'">'+head+'<textarea placeholder="Leave a comment only if this image must be redone" data-k="'+key+'"></textarea>';
+      /* v15.1 (C2): tick to accept this one image on its own. Already-accepted
+         images show a badge instead and cannot be un-ticked here. */
+      const lockedAlready=rec.name?isLocked(rec.name):false;
+      const ctrl = lockedAlready
+        ? '<div class="racc"><b>Accepted</b> — locked to the editor</div>'
+        : '<label class="rtick"><input type="checkbox" data-acc="'+esc(rec.name||'')+'"> Accept this image</label>';
+      c.innerHTML='<img src="'+url+'">'+head+ctrl+
+        (lockedAlready?'':'<textarea placeholder="Leave a comment only if this image must be redone" data-k="'+key+'"></textarea>');
       c.querySelector('img').onclick=()=>lightbox(url,key+' · '+lbl,'');
+      if(lockedAlready) c.classList.add('rlocked');
     } else {
       c.innerHTML='<div class="rmiss"><b>Not uploaded</b><span>'+((sk&&sk.t)||'')+(opt?'<br>optional slot':'')+'</span></div>'+head+
                   '<textarea placeholder="Comment on the missing image — e.g. what is needed, or when" data-k="'+key+'"></textarea>';
     }
+    {const hh=histHTML(S.revHist&&S.revHist[key]); if(hh) c.insertAdjacentHTML('beforeend',hh);}   // v15.2 (C1)
     const ta=c.querySelector('textarea');
-    ta.oninput=()=>{ const v=ta.value.trim(); if(v)S.revFiles[key]=v; else delete S.revFiles[key]; c.classList.toggle('hasnote',!!v); };
+    if(ta) ta.oninput=()=>{ const v=ta.value.trim(); if(v)S.revFiles[key]=v; else delete S.revFiles[key]; c.classList.toggle('hasnote',!!v); };
+    const tick=c.querySelector('input[data-acc]');
+    if(tick) tick.onchange=()=>{ c.classList.toggle('rpick',tick.checked); updateAcceptBtn(); };
     return c;
   };
 
@@ -1604,13 +1863,13 @@ async function openReview(it){
   for(const sk of expected){
     const d=onDisk[sk.key];
     let rec=null;
-    if(d) rec={file:await d.handle.getFile()};
+    if(d) rec={file:await d.handle.getFile(),name:d.name};
     else if(!sk.opt) missReq.push(sk.key);
     g.appendChild(mkCard(sk.key,d?d.lbl:(sk.k||''),rec,sk));
   }
   for(const key of orphans){
     const d=onDisk[key];
-    g.appendChild(mkCard(key,d.lbl,{file:await d.handle.getFile()},null));
+    g.appendChild(mkCard(key,d.lbl,{file:await d.handle.getFile(),name:d.name},null));
   }
   S.revMissing=missReq;
 
@@ -1629,6 +1888,26 @@ async function openReview(it){
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
+/* v15.1 (C2): accept the ticked images, leaving the rest with the editor. */
+function updateAcceptBtn(){
+  const n=document.querySelectorAll('#revGrid input[data-acc]:checked').length;
+  const b=$('revAccept'); if(!b) return;
+  b.textContent = n? ('Accept ticked ('+n+')') : 'Accept ticked';
+  b.disabled = !n;
+}
+$('revAccept').onclick=async()=>{
+  if(!S.revItem) return;
+  const names=[...document.querySelectorAll('#revGrid input[data-acc]:checked')].map(x=>x.dataset.acc).filter(Boolean);
+  if(!names.length){ alert('Tick the images you want to accept first.'); return; }
+  if(!confirm('Accept '+names.length+' image(s)?\n\nThey are locked in place — the editor can still open them at full size, but cannot replace or delete them. They move to 01_MASTERS when you approve the whole set.')) return;
+  try{ wbClearFail(); await lockSlots(S.revItem,names); }
+  catch(e){ wbFail('Could not accept those images — nothing was changed', e); return; }
+  $('status').className='status ok';
+  $('status').textContent='Accepted '+names.length+' image(s) — locked for '+S.revItem.pid+' · '+S.revItem.fab+'.';
+  await openReview(S.revItem);
+};
+/* v15.2 (D): the tree is cached, so this is how you force a re-read. */
+{const rb=$('revRefresh'); if(rb) rb.onclick=async()=>{ invalidateWalk(); rb.textContent='↻ Reading…'; await refreshQueues(); rb.textContent='↻ Refresh'; };}
 $('revBack').onclick=()=>{$('revDetail').style.display='none';{const lc=$('revListCard'); if(lc) lc.style.display='block';}S.revItem=null;};
 $('revApprove').onclick=async()=>{
   if(!S.revItem)return;
@@ -1648,7 +1927,8 @@ $('revFlag').onclick=async()=>{
   if(!S.revItem)return;
   if(!Object.keys(S.revFiles).length){alert('Write a comment on at least one image, so the editor knows what to fix.');return;}
   const src=await dirFor(S.root,['_INBOX',S.revItem.cls,S.revItem.pid,S.revItem.fab]);
-  await writeJSON(src,'notes.json',{flagged_at:new Date().toISOString(),comments:S.revFiles});
+  const prevN=await readNotes(src);           // v15.2 (C1): never overwrite an earlier round
+  await writeJSON(src,'notes.json',{flagged_at:new Date().toISOString(),comments:S.revFiles,history:foldLive(prevN)});
   try{ wbClearFail(); await flagItem(S.revItem); }
   catch(e){ wbFail('Flag failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
   $('status').className='status err'; $('status').textContent='Flagged — '+Object.keys(S.revFiles).length+' image(s) sent back to the editor.';
@@ -1668,15 +1948,23 @@ function render(){
     let h='<div class="n">'+sk.key+(has?' ✓':'')+'</div><div class="t">'+sk.t+'</div><div class="bg">'+sk.bg+'</div>';
     // v14: a comment on a slot that has no image is not a "redo" — it is an instruction
     // for an image that was never uploaded. Label it for what it is.
-    if(note) h+='<div class="note"><b>'+(has?'Redo — comment':'Missing — comment')+'</b>'+note+'</div>';
+    if(note) h+='<div class="note"><b>'+(has?'Redo — comment':'Missing — comment')+'</b>'+esc(note)+'</div>';
+    h+=histHTML(S.hist&&S.hist[sk.key]);   // v15.2 (C1)
     h+='<div class="why">'+sk.why+'</div>';
     const rp='refs/'+S.cls+'-'+pad(sk.i)+'.jpg';
     h+='<div class="reflabel">Reference</div><div class="refwrap" data-ref="'+rp+'" data-t="'+sk.t+'" data-w="'+sk.why+'"><img src="'+rp+'" onerror="this.parentNode.previousElementSibling.style.display=\'none\';this.parentNode.style.display=\'none\'"><span class="zoom">Click to enlarge</span></div>';
     if(S.mode==='edit'){
       const f=S.files[sk.key];
       const src=f?(f.existing?f.url:URL.createObjectURL(f)):null;
-      h+='<label class="drop" data-k="'+sk.key+'">'+(src?'<img src="'+src+'">':'Drop image or click')+'<input type="file" accept="image/*" data-k="'+sk.key+'"></label>';
-      if(f) h+='<div class="fname">'+(f.name||'')+'</div><div class="tools"><button class="small" data-del="'+sk.key+'">✕ remove</button></div>';
+      if(f&&f.locked){
+        d.classList.add('lockedslot');
+        h+='<div class="drop lockview" data-src="'+esc(src||'')+'" data-nm="'+esc(unlockedName(f.name||''))+'">'+(src?'<img src="'+src+'">':'accepted')+'</div>';
+        h+='<div class="fname">'+esc(unlockedName(f.name||''))+'</div>';
+        h+='<div class="acclock"><b>Accepted</b> — click to open at the size you uploaded. This one is settled: it cannot be replaced or removed.</div>';
+      } else {
+        h+='<label class="drop" data-k="'+sk.key+'">'+(src?'<img src="'+src+'">':'Drop image or click')+'<input type="file" accept="image/*" data-k="'+sk.key+'"></label>';
+        if(f) h+='<div class="fname">'+esc(f.name||'')+'</div><div class="tools"><button class="small" data-del="'+sk.key+'">✕ remove</button></div>';
+      }
     } else {
       h+='<label class="check"><input type="checkbox" data-k="'+sk.key+'" '+(S.checks[sk.key]?'checked':'')+'><span>Captured</span></label>';
     }
@@ -1687,7 +1975,8 @@ function render(){
   document.querySelectorAll('.refwrap').forEach(w=>w.onclick=()=>lightbox(w.dataset.ref,w.dataset.t,w.dataset.w));
   document.querySelectorAll('.drop input').forEach(i=>i.onchange=e=>{const f=e.target.files[0];if(f) putSlot(e.target.dataset.k,f);});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.preventDefault();delSlot(b.dataset.del);});
-  document.querySelectorAll('.drop').forEach(dz=>{
+  document.querySelectorAll('.lockview').forEach(v=>v.onclick=()=>{ if(v.dataset.src) lightbox(v.dataset.src, v.dataset.nm, 'Accepted and locked. This is the file exactly as you uploaded it.'); });
+  document.querySelectorAll('.drop:not(.lockview)').forEach(dz=>{
     dz.ondragover=e=>{e.preventDefault();dz.closest('.slot').classList.add('drag');};
     dz.ondragleave=()=>dz.closest('.slot').classList.remove('drag');
     dz.ondrop=e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(f&&f.type.startsWith('image/')) putSlot(dz.dataset.k,f);};
@@ -1775,7 +2064,12 @@ async function sendForReview(){
     td=await dirFor(S.root,['_INBOX',S.cls,id,f],true);
     try{ const want=await copyInto(src,td); await verifyCopy(want,td); }
     catch(e){ wbFail('Could not move this set out of rework — nothing was deleted', e); return; }
-    try{await td.removeEntry('notes.json');}catch(e){}
+    /* v15.2 (C1): the round closes here. The comments move into history so the
+       reviewer can still see what was asked for last time; they no longer show as
+       outstanding. Previously this file was deleted and the record was lost. */
+    try{ const prevG=await readNotes(td);
+         await writeJSON(td,'notes.json',{closed_at:new Date().toISOString(),comments:{},message:'',history:foldLive(prevG)}); }
+    catch(e){ wbFail('Sent, but the comment history could not be carried forward', e); }
     try{ const rp=await dirFor(S.root,['_INBOX','_rework',S.cls,id]); await rp.removeEntry(f,{recursive:true}); }catch(e){}
     S.rework=false;
   } else {
@@ -1785,6 +2079,7 @@ async function sendForReview(){
   for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:S.files[sk.key].name||fname(sk,'jpg'),slot:sk.k};
   await writeJSON(td,'manifest.json',man);
   await writeJSON(td,'READY.json',{sent:new Date().toISOString(),by:ROLE});
+  invalidateWalk();                                 // v15.2 (D)
   S.ready=true; S.notes={}; S.flagMsg='';
   $('status').className='status ok';
   $('status').textContent='Sent for review — '+id+' · '+f+'.'+(missing.length?'  Sent incomplete: '+missing.join(', ')+' not uploaded — the admin can comment on those slots.':'');
