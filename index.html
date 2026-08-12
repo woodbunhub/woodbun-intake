@@ -109,6 +109,7 @@ body.admin .dest.adminonly{display:flex !important}
   .check{display:flex;align-items:center;gap:9px;cursor:pointer;padding:5px 0}
   .check input{width:19px;height:19px;min-width:19px;accent-color:var(--teal);cursor:pointer}
   .tools{display:flex;gap:6px;flex-wrap:wrap}
+  .revheld{font:600 12px/1.5 var(--sans);color:#245c40;background:#e6f4ec;border:1px solid #9fd3ba;border-radius:8px;padding:8px 11px;margin-bottom:10px}
   .chist{border:1px solid var(--border);border-radius:6px;background:var(--panel);padding:0 8px}
   .chist summary{cursor:pointer;font:11px/2.1 var(--sans);color:var(--muted);list-style:none}
   .chist summary::-webkit-details-marker{display:none}
@@ -447,6 +448,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     </div>
     <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing — including on slots the editor left empty. Approving copies every file to <b>01_MASTERS</b>. Flagging sends the folder to the editor's <b>_INBOX/_rework</b> with your comments.</div>
     <div class="revsum" id="revSum"></div>
+    <div class="revheld" id="revHeld" style="display:none"></div>
     <div class="rgrid" id="revGrid"></div>
   </div>
 </div>
@@ -536,7 +538,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.2';
+const APP_VERSION='v15.4';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1219,7 +1221,7 @@ async function loadExisting(){
    If the studio's exports turn out not to comply, flip HARD_DIMS to false for a few days —
    the same message is then shown as a warning and the file is still accepted. */
 const IMG_SIDE=2048, IMG_MIN_BYTES=200*1024, IMG_MAX_BYTES=3.5*1024*1024;
-const HARD_DIMS=true;
+const HARD_DIMS=true;   // owner ruling 2026-08-12: hard stop from day one, no warning-only period
 /* ===== v15.1: the same photograph in two slots =====
    astra-queen shipped with 07 and 07b as the identical file and it was not caught at
    review. Size equality is the cheap test; a SHA-256 of the bytes confirms it. Soft
@@ -1274,15 +1276,59 @@ async function findIdenticalInFolder(dirHandle,file,ignoreName){
     return null;
   }catch(e){ return null; }
 }
+/* v15.4: the format check reads the FILE, not the filename. A PNG saved as .jpg
+   passed the old test — the extension said JPEG and the browser decoded it happily —
+   and then travelled into masters as a PNG. This parses the JPEG markers directly:
+   the SOI signature, and the component count in the frame header, which is 1 for
+   greyscale, 3 for colour and 4 for CMYK. */
+function sniffKind(b){
+  const t=(a,o)=>a.every((v,i)=>b[(o||0)+i]===v);
+  if(t([0x89,0x50,0x4E,0x47])) return 'a PNG';
+  if(t([0x52,0x49,0x46,0x46])&&t([0x57,0x45,0x42,0x50],8)) return 'a WebP';
+  if(t([0x47,0x49,0x46,0x38])) return 'a GIF';
+  if(t([0x66,0x74,0x79,0x70],4)) return 'a HEIC / HEIF';
+  if(t([0x49,0x49,0x2A,0x00])||t([0x4D,0x4D,0x00,0x2A])) return 'a TIFF';
+  if(t([0x42,0x4D])) return 'a BMP';
+  if(t([0x3C,0x3F,0x78,0x6D])||t([0x3C,0x73,0x76,0x67])) return 'an SVG';
+  return 'not an image this tool can read';
+}
+async function sniffJpeg(file){
+  try{
+    const buf=new Uint8Array(await file.slice(0,Math.min(file.size,256*1024)).arrayBuffer());
+    if(!(buf[0]===0xFF&&buf[1]===0xD8&&buf[2]===0xFF)) return {jpeg:false,comps:0,kind:sniffKind(buf)};
+    let i=2;
+    while(i<buf.length-9){
+      if(buf[i]!==0xFF){ i++; continue; }
+      const m=buf[i+1];
+      if(m===0xFF){ i++; continue; }
+      if(m===0xD8||m===0x01||(m>=0xD0&&m<=0xD7)){ i+=2; continue; }
+      if(m===0xDA) break;                                   // start of scan — no frame header found
+      const len=(buf[i+2]<<8)|buf[i+3];
+      if(m>=0xC0&&m<=0xCF&&m!==0xC4&&m!==0xC8&&m!==0xCC){    // SOF0..SOF15 = frame header
+        return {jpeg:true, comps:buf[i+9], h:(buf[i+5]<<8)|buf[i+6], w:(buf[i+7]<<8)|buf[i+8]};
+      }
+      if(len<2) break;
+      i+=2+len;
+    }
+    return {jpeg:true, comps:0};
+  }catch(e){ return {jpeg:false, comps:0, err:e.message}; }
+}
 async function validateImage(file){
   const errs=[], warns=[]; const nm=(file.name||'').toLowerCase();
-  const isJpeg = (file.type==='image/jpeg') || /\.jpe?g$/.test(nm);
-  if(!isJpeg) errs.push('It must be a JPEG. This one is '+(file.type||nm.split('.').pop()||'an unknown type')+'. Re-export as JPEG.');
+  const extOk = /\.jpe?g$/.test(nm);
+  const sn = await sniffJpeg(file);
+  if(!sn.jpeg){
+    errs.push('This is not a JPEG. Whatever the name says, the file itself is '+(sn.kind||'something else')+'. Re-export as JPEG — renaming a file does not convert it.');
+  } else if(!extOk){
+    errs.push('It is a JPEG but the filename ends in .'+(nm.split('.').pop()||'?')+'. The extension becomes part of the stored filename, so it must be .jpg. Rename it and upload again.');
+  }
+  if(sn.jpeg&&sn.comps===1) errs.push('It is greyscale. Woodbun masters are RGB colour — re-export in RGB.');
+  if(sn.jpeg&&sn.comps===4) errs.push('It is CMYK. Woodbun masters are RGB — CMYK will shift colour on the website. Re-export in sRGB.');
   let w=0,h=0;
   try{ const bmp=await createImageBitmap(file); w=bmp.width; h=bmp.height; if(bmp.close) bmp.close(); }
-  catch(e){ errs.push('It could not be opened as an image ('+e.message+').'); }
+  catch(e){ w=sn.w||0; h=sn.h||0; if(!w||!h) errs.push('It could not be opened as an image ('+e.message+').'); }
   if(w&&h&&(w!==IMG_SIDE||h!==IMG_SIDE)){
-    const msg='It must be exactly '+IMG_SIDE+' x '+IMG_SIDE+'. This one is '+w+' x '+h+'.';
+    const msg='It must be exactly '+IMG_SIDE+' x '+IMG_SIDE+'. This one is '+w+' x '+h+'. Your compression script can shrink an image but never enlarge one, so an undersized master stays undersized forever.';
     (HARD_DIMS?errs:warns).push(msg);
   }
   if(file.size<IMG_MIN_BYTES) warns.push('Only '+Math.round(file.size/1024)+' KB — thin for a '+IMG_SIDE+'px image. Check it has not been over-compressed.');
@@ -1804,8 +1850,16 @@ $('mvDone').onclick=async()=>{
 };
 
 /* ---------- review ---------- */
+/* v15.3: comments are STICKY. openReview used to reset S.revFiles and rebuild every
+   textarea from scratch, so accepting a few images — which re-opens the screen —
+   threw away every comment you had typed on the others. Drafts are now held per
+   product+variant for the whole session and only cleared when they are consumed by
+   Flag, or deliberately discarded by Approve. */
+function revKey(it){ return it? (it.cls+'/'+it.pid+'/'+it.fab) : ''; }
+function revDraft(it){ S.revDrafts=S.revDrafts||{}; const k=revKey(it); return (S.revDrafts[k]=S.revDrafts[k]||{}); }
+function clearDraft(it){ S.revDrafts=S.revDrafts||{}; delete S.revDrafts[revKey(it)]; }
 async function openReview(it){
-  S.revItem=it; S.revFiles={}; S.revMissing=[];
+  S.revItem=it; S.revFiles=Object.assign({},revDraft(it)); S.revMissing=[];
   $('revDetail').style.display='block';
   /* v15 (C3): collapse the queue so the images sit at the top of the screen,
      instead of below fifteen rows the admin has to scroll past every time. */
@@ -1852,7 +1906,13 @@ async function openReview(it){
     }
     {const hh=histHTML(S.revHist&&S.revHist[key]); if(hh) c.insertAdjacentHTML('beforeend',hh);}   // v15.2 (C1)
     const ta=c.querySelector('textarea');
-    if(ta) ta.oninput=()=>{ const v=ta.value.trim(); if(v)S.revFiles[key]=v; else delete S.revFiles[key]; c.classList.toggle('hasnote',!!v); };
+    if(ta){
+      if(S.revFiles[key]){ ta.value=S.revFiles[key]; c.classList.add('hasnote'); }   // v15.3: put the draft back
+      ta.oninput=()=>{ const v=ta.value.trim();
+        if(v){ S.revFiles[key]=v; revDraft(S.revItem)[key]=v; }
+        else { delete S.revFiles[key]; delete revDraft(S.revItem)[key]; }
+        c.classList.toggle('hasnote',!!v); updateRevNote(); };
+    }
     const tick=c.querySelector('input[data-acc]');
     if(tick) tick.onchange=()=>{ c.classList.toggle('rpick',tick.checked); updateAcceptBtn(); };
     return c;
@@ -1872,6 +1932,7 @@ async function openReview(it){
     g.appendChild(mkCard(key,d.lbl,{file:await d.handle.getFile(),name:d.name},null));
   }
   S.revMissing=missReq;
+  updateRevNote();                                  // v15.3
 
   const sum=$('revSum');
   if(sum){
@@ -1899,15 +1960,31 @@ $('revAccept').onclick=async()=>{
   if(!S.revItem) return;
   const names=[...document.querySelectorAll('#revGrid input[data-acc]:checked')].map(x=>x.dataset.acc).filter(Boolean);
   if(!names.length){ alert('Tick the images you want to accept first.'); return; }
-  if(!confirm('Accept '+names.length+' image(s)?\n\nThey are locked in place — the editor can still open them at full size, but cannot replace or delete them. They move to 01_MASTERS when you approve the whole set.')) return;
+  /* v15.3: a ticked image that carries a comment is a contradiction — accepting it
+     means the comment will never reach the editor. Say so before it is lost. */
+  const tickedKeys=[...document.querySelectorAll('#revGrid input[data-acc]:checked')]
+    .map(x=>{ const t=x.closest('.rcard').querySelector('textarea'); return t?t.dataset.k:null; }).filter(Boolean);
+  const clash=tickedKeys.filter(k=>S.revFiles[k]);
+  if(clash.length && !confirm('You have a comment on '+clash.join(', ')+', and you are accepting '+(clash.length>1?'those images':'that image')+'.\n\nAccepting discards '+(clash.length>1?'those comments':'that comment')+' — they can never reach the editor. Continue?')) return;
+  if(!confirm('Accept '+names.length+' image(s)?\n\nThey are locked in place — the editor can still open them at full size, but cannot replace or delete them. They move to 01_MASTERS when you approve the whole set.\n\nYour comments on the other images are kept.')) return;
+  clash.forEach(k=>{ delete S.revFiles[k]; delete revDraft(S.revItem)[k]; });
   try{ wbClearFail(); await lockSlots(S.revItem,names); }
   catch(e){ wbFail('Could not accept those images — nothing was changed', e); return; }
   $('status').className='status ok';
-  $('status').textContent='Accepted '+names.length+' image(s) — locked for '+S.revItem.pid+' · '+S.revItem.fab+'.';
+  const kept=Object.keys(S.revFiles).length;
+  $('status').textContent='Accepted '+names.length+' image(s) — locked for '+S.revItem.pid+' · '+S.revItem.fab+'.'+(kept?'  '+kept+' comment(s) still held.':'');
   await openReview(S.revItem);
 };
 /* v15.2 (D): the tree is cached, so this is how you force a re-read. */
 {const rb=$('revRefresh'); if(rb) rb.onclick=async()=>{ invalidateWalk(); rb.textContent='↻ Reading…'; await refreshQueues(); rb.textContent='↻ Refresh'; };}
+/* v15.3: says how many comments are being held, so "did that just eat my typing?"
+   has an answer on screen instead of in your memory. */
+function updateRevNote(){
+  const n=Object.keys(S.revFiles||{}).length;
+  const el=$('revHeld'); if(!el) return;
+  el.textContent = n? (n+' comment'+(n>1?'s':'')+' held on this set — kept while you accept images; sent when you Flag.') : '';
+  el.style.display = n? 'block':'none';
+}
 $('revBack').onclick=()=>{$('revDetail').style.display='none';{const lc=$('revListCard'); if(lc) lc.style.display='block';}S.revItem=null;};
 $('revApprove').onclick=async()=>{
   if(!S.revItem)return;
@@ -1920,6 +1997,7 @@ $('revApprove').onclick=async()=>{
   if((S.revMissing||[]).length && !confirm('This set is incomplete — '+S.revMissing.length+' required image(s) never uploaded ('+S.revMissing.join(', ')+').\n\nApprove to 01_MASTERS anyway?'))return;
   try{ wbClearFail(); await approveItem(S.revItem); await markApproved(S.revItem); }
   catch(e){ wbFail('Approve failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
+  clearDraft(S.revItem);                       // v15.3: deliberately discarded
   $('status').className='status ok'; $('status').textContent='Approved — '+S.revItem.pid+' · '+S.revItem.fab+' moved to 01_MASTERS.';
   $('revDetail').style.display='none'; {const lc=$('revListCard'); if(lc) lc.style.display='block';} S.revItem=null; await refreshQueues();
 };
@@ -1931,6 +2009,7 @@ $('revFlag').onclick=async()=>{
   await writeJSON(src,'notes.json',{flagged_at:new Date().toISOString(),comments:S.revFiles,history:foldLive(prevN)});
   try{ wbClearFail(); await flagItem(S.revItem); }
   catch(e){ wbFail('Flag failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
+  clearDraft(S.revItem);                       // v15.3: consumed — they are on disk now
   $('status').className='status err'; $('status').textContent='Flagged — '+Object.keys(S.revFiles).length+' image(s) sent back to the editor.';
   $('revDetail').style.display='none'; {const lc=$('revListCard'); if(lc) lc.style.display='block';} S.revItem=null; await refreshQueues();
 };
