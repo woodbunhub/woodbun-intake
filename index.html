@@ -274,6 +274,8 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .rbad b{display:block;margin-bottom:2px}
 .rwarn{font:11px/1.45 var(--sans);color:#7a4d00;background:#fef3c7;border:1px solid #d9a72a;border-radius:7px;padding:6px 9px;margin:2px 0}
 .rblock{font:600 11px var(--sans);color:#8a1c1c;padding:6px 2px}
+.revrw{font:600 12px/1.5 var(--sans);color:#7a4d00;background:#fef3c7;border:1px solid #d9a72a;border-radius:8px;padding:8px 11px;margin-bottom:10px}
+.qitem.qrw{border-left:3px solid #d9a72a}
 .rcard.rbadcard{border-color:#e39a9a;box-shadow:0 0 0 2px rgba(227,154,154,.35)}
 #errBar{display:none;background:#7f1d1d;color:#fff;border-radius:9px;padding:11px 14px;margin-bottom:14px;font:600 13px var(--sans);line-height:1.45}
 </style>
@@ -477,6 +479,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <button class="act good" id="revApprove">Approve → Masters</button>
     </div>
     <div class="hint" style="margin-bottom:12px">Write a comment under any image that needs redoing — including on slots the editor left empty. Approving copies every file to <b>01_MASTERS</b>. Flagging sends the folder to the editor's <b>_INBOX/_rework</b> with your comments.</div>
+    <div class="revrw" id="revRwNote" style="display:none"></div>
     <div class="revsum" id="revSum"></div>
     <div class="revheld" id="revHeld" style="display:none"></div>
     <div class="rgrid" id="revGrid"></div>
@@ -568,7 +571,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.6';
+const APP_VERSION='v15.7';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1057,10 +1060,17 @@ async function refreshQueues(){
        $('dimPill').textContent=dp; $('dimPill').style.display=dp?'inline-block':'none'; }catch(e){}
   if(S.mode==='panel') buildPanel();
 
-  $('revQueue').innerHTML=ready.length?'':'<div class="qempty">Nothing waiting. When the editor sends a set for review, it lands here.</div>';
-  ready.forEach(it=>{
-    const d=document.createElement('div'); d.className='qitem';
-    d.innerHTML='<span class="who">'+it.pid+'</span><span class="meta">'+it.cls+' · '+it.fab+'</span><button class="small">Review</button>';
+  /* v15.6: sets that are back with the editor are listed here too, read-only.
+     Without this there is no way to reach a set in _rework — which meant an image
+     accepted by mistake could not be released until the editor re-sent the whole set. */
+  const revList=ready.concat(flg.map(x=>Object.assign({},x,{lane:'rework'})));
+  $('revQueue').innerHTML=revList.length?'':'<div class="qempty">Nothing waiting. When the editor sends a set for review, it lands here.</div>';
+  revList.forEach(it=>{
+    const rw=it.lane==='rework';
+    const d=document.createElement('div'); d.className='qitem'+(rw?' qrw':'');
+    d.innerHTML='<span class="who">'+esc(it.pid)+'</span><span class="meta">'+esc(it.cls)+' · '+esc(it.fab)+
+      (rw?' · <b>with the editor</b> — open to view or release accepted images':'')+'</span>'+
+      '<button class="small">'+(rw?'Open':'Review')+'</button>';
     d.onclick=()=>openReview(it); $('revQueue').appendChild(d);
   });
 
@@ -2027,7 +2037,16 @@ async function openReview(it){
   /* v15 (C3): collapse the queue so the images sit at the top of the screen,
      instead of below fifteen rows the admin has to scroll past every time. */
   {const lc=$('revListCard'); if(lc) lc.style.display='none';}
-  $('revTitle').textContent=it.pid+' · '+it.cls+' · '+it.fab;
+  $('revTitle').textContent=it.pid+' · '+it.cls+' · '+it.fab+(it.lane==='rework'?'   (with the editor)':'');
+  /* v15.6: a set in _rework cannot be approved or flagged — it is not in the review
+     lane and those actions read from _INBOX. Viewing, commenting and Release all work. */
+  {const rw=it.lane==='rework';
+   ['revApprove','revFlag'].forEach(id=>{const b=$(id); if(b){ b.disabled=rw; b.style.display=rw?'none':''; }});
+   const h=$('revRwNote');
+   if(h){ h.style.display=rw?'block':'none';
+          h.textContent='This set is back with the editor, so it cannot be approved or flagged from here. '+
+            'You can look at it, and you can Release any image you accepted by mistake — released images '+
+            'go back to the editor to replace.'; }}
   const g=$('revGrid'); g.innerHTML='<div class="qempty">Loading…</div>';
   S.revHist=histOf(await readNotes(it.handle));   // v15.2 (C1): what was asked for last round
   S.revSpec={};                                  // v15.6: slot -> validateImage() result
