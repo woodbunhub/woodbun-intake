@@ -563,7 +563,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.9';
+const APP_VERSION='v15.10';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1296,9 +1296,28 @@ async function loadExisting(){
       const key=m[1]+(m[2]||'');
       const lk=isLocked(fl.name);
       if(m[2]){ const b=parseInt(m[1],10); S.subs[b]=Math.max(S.subs[b]||0, m[2].charCodeAt(0)-96); }
-      S.files[key]={existing:true,url:URL.createObjectURL(await fl.handle.getFile()),name:fl.name,locked:lk};
+      const file=await fl.handle.getFile();
+      S.files[key]={existing:true,url:URL.createObjectURL(file),name:fl.name,locked:lk,
+                    mtime:file.lastModified||0};
     }
     try{ await td.getFileHandle('READY.json'); S.ready=true; }catch(e){}
+    /* v15.10: work out what has been redone from the FILES, not only from the flag the
+       tool remembered to write. A commented slot whose image is newer than the moment the
+       set was flagged has been replaced — that is what "redone" means, and it is true
+       whether or not any earlier version of this tool recorded it. Sets uploaded while
+       v15.5-v15.8 was live never got the flag written, and without this they stay stuck
+       on "still to redo" forever, because the file already exists so the upload path that
+       sets the flag never runs again. */
+    if(rework){
+      const flagAt=Date.parse(nts.flagged_at||nts.recalled_at||'')||0;
+      if(flagAt){
+        const rm=redoneMap();
+        for(const k of Object.keys(S.notes)){
+          const f=S.files[k];
+          if(f && f.mtime && f.mtime>flagAt) rm[k]=1;
+        }
+      }
+    }
   }catch(e){}
   render();
 }
