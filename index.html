@@ -563,7 +563,7 @@ const ROLE_HASHES={
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
  '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.8';
+const APP_VERSION='v15.9';
 let ROLE='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1477,9 +1477,6 @@ async function putSlot(key,file){
     const w=await h.createWritable(); await w.write(file); await w.close();
     try{await td.removeEntry('READY.json');}catch(e){}
     S.ready=false; invalidateWalk();               // v15.2 (D)
-    logEvent('image.save',{cls:S.cls,product:id,variant:fab(),slot:key,file:fname(sk,ext),
-      bytes:file.size,w:vr.w||null,h:vr.h||null,lane:S.rework?'rework':'inbox',
-      warnings:vr.warns.length?vr.warns:undefined});                       // v15.5
     S.files[key]={existing:true,url:URL.createObjectURL(file),name:fname(sk,ext)};
     redoneMap()[key]=1;
     if(S.rework){ try{
@@ -1490,6 +1487,17 @@ async function putSlot(key,file){
     render();
     $('status').className=vr.warns.length?'status warn':'status ok';
     $('status').textContent='Saved '+fname(sk,ext)+(vr.warns.length?' — '+vr.warns.join(' '):'');
+    /* v15.9: the log call goes LAST, after the file is written, the state is updated and
+       the screen has redrawn. In v15.5-v15.8 it sat mid-function and referenced an
+       undefined variable, so every save threw "id is not defined" after the bytes had
+       already landed — the file was on disk, the slot still looked empty, and the redo
+       flag was never cleared, which blocked Send for review. Nothing that only records
+       what happened may sit in the path of the thing happening. */
+    try{
+      logEvent('image.save',{cls:S.cls,product:pid(),variant:fab(),slot:key,file:fname(sk,ext),
+        bytes:file.size,w:vr.w||null,h:vr.h||null,lane:S.rework?'rework':'inbox',
+        warnings:vr.warns.length?vr.warns:undefined});
+    }catch(e){ console.error('[woodbun] log',e); }
   }catch(e){ $('status').className='status err'; $('status').textContent='Could not save image: '+e.message; }
 }
 async function delSlot(key){
