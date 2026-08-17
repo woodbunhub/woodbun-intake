@@ -1187,13 +1187,16 @@ async function openVars(p){
   if(!S.root){alert('Choose your Intake folder first.');return;}
   VP=p; $('vaPid').textContent=p.id; $('vaMeta').textContent=p.class||'';
   const u=await findRef(p.id); $('vaThumbs').innerHTML=thumbHtml(p.id,u); wireZoom($('vaThumbs'));
-  const isSofa=(p.class==='sofa');
-  const vt=(CLASSES[p.class]&&CLASSES[p.class].variant)||'fabric';
-  document.querySelectorAll('#varOv .fabgrp').forEach(e=>e.style.display=(isSofa&&vt==='fabric')?'flex':'none');
-  document.querySelectorAll('#varOv .fingrp').forEach(e=>e.style.display=(isSofa&&vt==='finish')?'flex':'none');
-  $('vaHint').textContent = isSofa
-    ? 'Add each variant, then attach its identifier photo.'
-    : 'Single product, no fabric variants.';
+  /* v15.11: vaHint was deleted from the markup in the copy strip but this function kept
+     writing to it, so openVars threw on a null before it ever showed the overlay — the
+     button did nothing, silently, because an async throw surfaces only in the console.
+     Second fix in the same three lines: the variant type was read from CLASSES[cls].variant,
+     which is never assigned. It lives on S.classes[].vtype. vt was therefore always
+     'fabric', so the finish group's condition could never be true and no non-sofa class
+     could ever be given a finish variant. */
+  const vt=((S.classes||[]).find(c=>c.cls===p.class)||{}).vtype||'fabric';
+  document.querySelectorAll('#varOv .fabgrp').forEach(e=>e.style.display=(vt==='fabric')?'flex':'none');
+  document.querySelectorAll('#varOv .fingrp').forEach(e=>e.style.display=(vt==='finish')?'flex':'none');
   await renderVaList();
   $('varOv').classList.add('on');
 }
@@ -1222,7 +1225,7 @@ async function renderVaList(){
         if(!confirm('This variant has editor uploads. Remove anyway?')) return;
       }
       await removeVariantRef(VP.id,x.code);
-      v.variants.splice(i,1); await writeVars(VP.id,v); renderVaList();
+      v.variants.splice(i,1); await writeVars(VP.id,v); await renderVaList();
     };
     L.appendChild(d); wireZoom(d);
   }
@@ -1230,7 +1233,7 @@ async function renderVaList(){
 async function addVariant(entry){
   const v=(await readVars(VP.id))||{id:VP.id,class:VP.class||'',variants:[]};
   if(v.variants.some(x=>x.code===entry.code)){alert(entry.code+' is already on the list.');return;}
-  v.variants.push(entry); await writeVars(VP.id,v); renderVaList();
+  v.variants.push(entry); await writeVars(VP.id,v); await renderVaList();
 }
 $('vaAddFab').onclick=()=>{ const a=clean($('fCo').value),b=clean($('fCat').value),c=clean($('fCode').value);
   if(!(a&&b&&c)){alert('Pick company, catalogue and colour code first.');return;}
