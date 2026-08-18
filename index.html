@@ -59,7 +59,14 @@ async function xlsxReady(){
   select:disabled{background:var(--panel);color:var(--muted)}
   .hint{font-size:12px;color:var(--muted)}
   .dim input{min-width:86px;width:86px}
+  #flagBox{display:none;margin:10px 0;border:1px solid var(--terracotta);border-radius:6px;overflow:hidden}
+  .fl-hd{background:var(--terracotta);color:#fff;font:600 12px var(--mono);padding:6px 10px;text-transform:uppercase;letter-spacing:.06em}
+  .fl-row{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-top:1px solid #eee}
+  .fl-row .grow{flex:1}
+  .fl-by{font:11px var(--mono);color:#8a7a6a;margin-left:8px}
+  .fl-msg{font:13px var(--sans);margin-top:2px}
   .adminonly{display:none}
+  .staffonly,.staffonly2{display:none}
   body.admin .adminonly{display:flex}
 body.admin .dest.adminonly{display:flex !important}
   .code{font:650 13px var(--mono);color:var(--teal);padding:9px 0}
@@ -328,7 +335,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <button id="mEdit">Edit &amp; upload<span class="pill" id="flagPill" style="display:none">0</span></button>
     <button id="mPanel" class="hide">Products<span class="pill" id="pnlPill" style="display:none">0</span></button>
     <button id="mRev" class="hide">Review<span class="pill" id="revPill" style="display:none">0</span></button>
-    <button id="mMast" class="hide">Masters</button>
+    <button id="mMast" class="hide">Masters<span class="pill" id="mastPill" style="display:none">0</span></button>
     <button id="mUp" class="hide">Uploads</button>
     <button id="mDims" class="hide">Dims<span class="pill" id="dimPill" style="display:none">0</span></button>
     <button id="mLog" class="hide">Activity</button>
@@ -348,10 +355,15 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <span class="path none" id="destPath">Not set — choose the “Intake” folder once.</span>
     <button class="small" id="pickDir">Choose folder</button>
   </div>
-  <div class="dest adminonly" style="display:none">
+  <div class="dest staffonly" style="display:none">
     <span class="reflabel">Masters folder</span>
-    <span class="path none" id="mastPath">Not set — choose “01_MASTERS”. Needed to approve.</span>
+    <span class="path none" id="mastPath">Not set — choose “01_MASTERS”.</span>
     <button class="small" id="pickMast">Choose folder</button>
+  </div>
+  <div class="dest staffonly" style="display:none">
+    <span class="reflabel">Assets root</span>
+    <span class="path none" id="assetPath">Not set — choose “Woodbun Assets”. Keeps every editor folder in step.</span>
+    <button class="small" id="pickAssets">Choose folder</button>
   </div>
   <div id="prodHead"><img id="phImg" alt=""><img id="phOri" alt="" style="display:none"><img id="phVar" class="zoomable" alt="" style="display:none"><div><div class="ph-id" id="phId"></div><div class="ph-msg" id="phMsg"></div><div class="ph-msg" id="phVarLbl" style="color:var(--teal);display:none"></div></div></div>
   <div id="phDims" style="display:none"></div>
@@ -364,10 +376,15 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <span class="path none" id="destPath2">Not set — choose your “Intake” folder once.</span>
     <button class="small" id="pickDir2">Choose folder</button>
   </div>
-  <div class="dest adminonly2" style="display:none">
+  <div class="dest staffonly2" style="display:none">
     <span class="reflabel">Masters folder</span>
-    <span class="path none" id="mastPath2">Not set — choose “01_MASTERS”. Needed to approve dims/images.</span>
+    <span class="path none" id="mastPath2">Not set — choose “01_MASTERS”.</span>
     <button class="small" id="pickMast2">Choose folder</button>
+  </div>
+  <div class="dest staffonly2" style="display:none">
+    <span class="reflabel">Assets root</span>
+    <span class="path none" id="assetPath2">Not set — choose “Woodbun Assets”. Keeps every editor folder in step.</span>
+    <button class="small" id="pickAssets2">Choose folder</button>
   </div>
 </div>
 <div id="flagCard" class="card" style="display:none">
@@ -387,6 +404,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   </div>
 </div>
 <div id="mastArea" style="display:none">
+  <div id="flagBox"></div>
   <div class="card"><h2>Approved masters</h2>
   <div class="row" style="margin-bottom:12px">
     <div class="f"><label>Class</label><select id="mSelCls"><option value="">— all —</option></select></div>
@@ -469,7 +487,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div id="mview"><div class="mv-top"><div class="mv-cap" id="mvCap">—</div><button class="small" id="mvClose">Close (Esc)</button></div>
 <div class="mv-img"><img id="mvImg" alt=""></div>
 <button class="mv-nav mv-prev" id="mvPrev">‹</button><button class="mv-nav mv-next" id="mvNext">›</button>
-<div class="mv-btm"><button class="act" id="mvReopen">Reopen in review</button><button class="act warn" id="mvRecall">Recall to editor…</button><button class="act ghost" id="mvDone" style="color:#fff;border-color:rgba(255,255,255,.4)">Mark product complete</button></div></div>
+<div class="mv-btm"><button class="act warn" id="mvFlag" style="display:none">Flag to admin</button><button class="act" id="mvReopen">Reopen in review</button><button class="act warn" id="mvRecall">Recall to editor…</button><button class="act ghost" id="mvDone" style="color:#fff;border-color:rgba(255,255,255,.4)">Mark product complete</button></div></div>
 <div id="workArea">
   <div class="prog"><div class="bar" id="bar"><i></i></div><div class="pct" id="pct">0 / 0 required</div></div>
   <div class="grid" id="grid"></div>
@@ -576,13 +594,21 @@ const FALLBACK={
 };
 
 /* v5: roles. Codes are stored ONLY as SHA-256 hashes; plaintext never appears here. */
+/* v15.14: a value may be a plain role string, or {r:<role>, who:<name in the log>}.
+   Four editors share one role and one screen, but the activity log names the person —
+   otherwise three people are one identity and nobody owns a mistake. Paste each new
+   editor's SHA-256 in place of the PASTE_HASH_HERE markers; the plaintext code never
+   appears in this file, by design. */
 const ROLE_HASHES={
  'a6fb977e4f3353faa5e985f7570be593006748d688116b2d69a77647df1dfaf7':'admin',
  'a9f08bea318baaf5558934207427efa49b73f3781aa1509ce49337b4580244a6':'shoot',
- '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':'editor',
+ '188b60d7cb60b234b77f89d9d12b181b32feb166a6d63c234c245c57db865255':{r:'editor',who:'editor-1'},
+ '90ea013592affc6c692559f9d36ab9bff37809bd8c461a4242d4a2dfb32052b7':{r:'editor',who:'editor-2'},
+ '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
+ '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.13';
-let ROLE='', ADMIN=false, STAFF=false;
+const APP_VERSION='v15.15';
+let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
    wbFail()     : v15 (A1) — one place to SHOW a failure instead of swallowing it.
@@ -597,7 +623,7 @@ function wbFail(where,e){
 }
 function wbClearFail(){ try{ const b=document.getElementById('errBar'); if(b) b.style.display='none'; }catch(_){} }
 async function sha256(t){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}
-const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',redone:{},rework:false,ready:false,_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,notes:{},revItem:null,revFiles:{},revMark:{},markups:{}};
+const S={mode:'shoot',cls:'',src:'',masters:null,refCache:{},flagMsg:'',redone:{},rework:false,ready:false,_pend:[],_flg:[],files:{},checks:{},subs:{},products:[],badIds:[],fabrics:[],finishes:[],classes:[],root:null,assets:null,peers:null,flags:[],notes:{},revItem:null,revFiles:{},revMark:{},markups:{}};
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,'0');
 const clean=s=>(s||'').toString().trim().toLowerCase().replace(/\s+/g,'-');
@@ -605,20 +631,22 @@ const valid=s=>/^[a-z0-9][a-z0-9-]*$/.test(s);
 const pid=()=>(($('pidSel').value)||'').trim();
 const vtype=()=>{const c=S.classes.find(x=>x.cls===S.cls); return c?c.vtype:'fabric';};
 const fab=()=>(S.mode==='edit'?($('vSel').value||'').trim():'');
-function applyRole(r){
-  ROLE=r; ADMIN=(r==='admin'); STAFF=(r==='staff'); sessionStorage.setItem('wb_role',r);
+function applyRole(r,who){
+  ROLE=r; WHO=who||r; ADMIN=(r==='admin'); STAFF=(r==='staff');
+  sessionStorage.setItem('wb_role',r); sessionStorage.setItem('wb_who',WHO);
   document.body.classList.remove('locked');
   document.body.classList.toggle('admin',ADMIN);
-  $('adminBadge').textContent=r; $('adminBadge').style.display='inline-block';
+  $('adminBadge').textContent=WHO; $('adminBadge').style.display='inline-block';
   $('mShoot').classList.toggle('hide', r==='editor'||STAFF);
   $('mPanel').classList.toggle('hide', r==='shoot');
   $('mEdit').classList.toggle('hide', r==='shoot'||STAFF);
   $('mRev').classList.toggle('hide', !ADMIN);
-  $('mMast').classList.toggle('hide', !ADMIN);
+  $('mMast').classList.toggle('hide', !(ADMIN||STAFF));
   $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
   $('mDims').classList.toggle('hide', !ADMIN);
   {const b=$('mLog'); if(b) b.classList.toggle('hide', !ADMIN);}
   document.querySelectorAll('.adminonly2').forEach(e=>e.style.display=ADMIN?'flex':'none');
+  document.querySelectorAll('.staffonly,.staffonly2').forEach(e=>e.style.display=(ADMIN||STAFF)?'flex':'none');
   $('mOut').classList.remove('hide');
   loadRegister();
   setMode(r==='shoot' ? 'shoot' : 'panel');
@@ -626,19 +654,22 @@ function applyRole(r){
 }
 async function tryLogin(){
   const h=await sha256($('pw').value.trim());
-  const r=ROLE_HASHES[h];
-  if(!r){$('pwErr').style.display='block';return;}
-  $('pwErr').style.display='none'; $('pw').value=''; applyRole(r);
+  const rec=ROLE_HASHES[h];
+  if(!rec){$('pwErr').style.display='block';return;}
+  $('pwErr').style.display='none'; $('pw').value='';
+  applyRole((rec&&rec.r)||rec, (rec&&rec.who)||null);
 }
 $('pwGo').onclick=tryLogin;
 $('pw').addEventListener('keydown',e=>{if(e.key==='Enter')tryLogin();});
-$('mOut')&&($('mOut').onclick=()=>{sessionStorage.removeItem('wb_role');location.reload();});
+$('mOut')&&($('mOut').onclick=()=>{sessionStorage.removeItem('wb_role');sessionStorage.removeItem('wb_who');location.reload();});
 /* v15 (A3): a saved role is no longer trusted for ADMIN. The admin screens carry the
    destructive buttons, so they are re-entered every page load. Other roles still resume. */
 /* v15: the running version is visible on the sign-in screen and in the header. */
 try{ $('verTag').textContent=APP_VERSION; }catch(e){}
 try{ $('verTagLogin').textContent=APP_VERSION; }catch(e){}
-{const saved=sessionStorage.getItem('wb_role'); if(saved&&['shoot','editor','staff'].includes(saved)) setTimeout(()=>applyRole(saved),0); else if(saved==='admin') sessionStorage.removeItem('wb_role');}
+{const saved=sessionStorage.getItem('wb_role'), savedWho=sessionStorage.getItem('wb_who');
+ if(saved&&['shoot','editor','staff'].includes(saved)) setTimeout(()=>applyRole(saved,savedWho),0);
+ else if(saved==='admin'){ sessionStorage.removeItem('wb_role'); sessionStorage.removeItem('wb_who'); }}
 
 /* v15 (B): owner's scheme — the FIRST shot in a sub-capable slot keeps the bare number,
    extras take a, b, c, d. So five details are 07, 07a, 07b, 07c, 07d. S.subs[i] counts
@@ -886,7 +917,7 @@ async function reopenToReview(it){        // v15.12: 01_MASTERS -> _INBOX, every
     const w=await h.createWritable(); await w.write(file); await w.close();
   }
   await verifyCopy(want,dst);
-  await writeJSON(dst,'READY.json',{sent:new Date().toISOString(),by:ROLE,reopened:true});
+  await writeJSON(dst,'READY.json',{sent:new Date().toISOString(),by:WHO,reopened:true});
   const parent=await dirFor(S.masters,[it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
   const st=await readStatus(); st.completed=(st.completed||[]).filter(x=>x!==it.pid); await writeStatus(st);
@@ -903,7 +934,7 @@ async function pullBackToReview(it){      // v15.12: _INBOX/_rework -> _INBOX (t
   try{ const ms=await src.getDirectoryHandle('_MARKUP');
        const md=await dst.getDirectoryHandle('_MARKUP',{create:true});
        const w2=await copyInto(ms,md); await verifyCopy(w2,md); }catch(e){}
-  await writeJSON(dst,'READY.json',{sent:new Date().toISOString(),by:ROLE,pulled_back:true});
+  await writeJSON(dst,'READY.json',{sent:new Date().toISOString(),by:WHO,pulled_back:true});
   const parent=await dirFor(S.root,['_INBOX','_rework',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
   logEvent('set.pull_back',{cls:it.cls,product:it.pid,variant:it.fab,
@@ -946,7 +977,7 @@ async function logEvent(action,detail){
     const dir=await dirFor(S.root,['_LOG'],true);
     const h=await dir.getFileHandle(logDay(now)+'.jsonl',{create:true});
     const end=(await h.getFile()).size;
-    const rec=Object.assign({t:now.toISOString(),by:ROLE||'unknown',v:APP_VERSION,action:action},detail||{});
+    const rec=Object.assign({t:now.toISOString(),by:WHO||ROLE||'unknown',v:APP_VERSION,action:action},detail||{});
     const w=await h.createWritable({keepExistingData:true});
     await w.seek(end);
     await w.write(JSON.stringify(rec)+'\n');
@@ -1032,6 +1063,74 @@ function setMasters(h){ S.masters=h;
   $('mastPath2').textContent=t; $('mastPath2').classList.remove('none');
 }
 
+/* ---- v15.15: one write, every editor folder -----------------------------------
+   _DIMS, _REFS and _VARIANTS are read by editors and written only by staff/admin.
+   With one Intake per editor those stores would drift the moment staff saved
+   anything, so every shared write fans out to every Intake folder under the assets
+   root. Reads stay local — each editor reads their own copy, which is now identical
+   by construction rather than by somebody remembering to run a sync. */
+function setAssets(h){ S.assets=h; S.peers=null;
+  const t=h.name+'  →  Intake* / _DIMS · _REFS · _VARIANTS';
+  ['assetPath','assetPath2'].forEach(id=>{const e=$(id); if(e){e.textContent=t;e.classList.remove('none');}});
+}
+async function intakePeers(){
+  if(S.peers) return S.peers;
+  const out=[];
+  if(S.assets){
+    try{ for await (const [n,h] of S.assets.entries()){
+      if(h.kind==='directory' && /^intake/i.test(n)) out.push({name:n,handle:h});
+    } }catch(e){}
+  }
+  out.sort((a,b)=>a.name.localeCompare(b.name));
+  if(!out.length && S.root) out.push({name:S.root.name,handle:S.root});
+  S.peers=out; return out;
+}
+/* Writes to every peer. Returns {ok:[names], failed:[{name,err}]} — never silent:
+   a store that did not receive the write is named, because a stale _VARIANTS is
+   the difference between an editor being able to shoot and not. */
+async function sharedWrite(store,name,payload){
+  const peers=await intakePeers(); const ok=[],failed=[];
+  for(const p of peers){
+    try{
+      const d=await dirFor(p.handle,[store],true);
+      const h=await d.getFileHandle(name,{create:true});
+      const w=await h.createWritable();
+      await w.write(payload instanceof Blob? payload : JSON.stringify(payload,null,2));
+      await w.close(); ok.push(p.name);
+    }catch(e){ failed.push({name:p.name,err:e.message}); }
+  }
+  return {ok,failed};
+}
+async function sharedDelete(store,names){
+  const peers=await intakePeers(); const ok=[];
+  for(const p of peers){
+    try{ const d=await dirFor(p.handle,[store]);
+      for(const n of names){ try{ await d.removeEntry(n); ok.push(p.name+'/'+n); }catch(e){} }
+    }catch(e){}
+  }
+  return ok;
+}
+function fanoutNote(res,what){
+  if(!res) return;
+  if(res.failed.length){
+    $('status').className='status err';
+    $('status').textContent=what+' saved to '+res.ok.length+' folder(s), FAILED on: '+
+      res.failed.map(f=>f.name+' ('+f.err+')').join(', ');
+  }else{
+    $('status').className='status ok';
+    $('status').textContent=what+' saved to '+res.ok.length+' folder(s): '+res.ok.join(', ');
+  }
+}
+async function chooseAssets(){
+  if(!window.showDirectoryPicker){alert('Use Chrome or Edge — this needs folder access.');return;}
+  try{
+    const h=await window.showDirectoryPicker({mode:'readwrite'});
+    setAssets(h); await hSet('assets',h);
+    const ps=await intakePeers();
+    $('status').className='status ok';
+    $('status').textContent='Assets root set — '+ps.length+' intake folder(s) will stay in step: '+ps.map(p=>p.name).join(', ');
+  }catch(e){}
+}
 async function chooseIntake(){
   if(!window.showDirectoryPicker){alert('Use Chrome or Edge — this needs folder access.');return;}
   try{
@@ -1051,6 +1150,8 @@ async function chooseMasters(){
   }catch(e){}
 }
 ['mSelCls','mSelPid','mSelFab'].forEach(id=>{ const el=$(id); if(el) el.onchange=()=>{ if(id==='mSelCls') $('mSelPid').value=''; buildMasters(); }; });
+{const a=$('pickAssets'); if(a) a.onclick=chooseAssets;}
+{const a=$('pickAssets2'); if(a) a.onclick=chooseAssets;}
 $('pickMast').onclick=chooseMasters;
 $('pickMast2').onclick=chooseMasters;
 /* offer reconnect on load, once a role is active */
@@ -1071,7 +1172,17 @@ async function offerReconnect(){
     };
     offerOn(['destPath','destPath2'], ih.name, reconn);
   }
-  if(ADMIN){
+  {const ah=await hGet('assets');
+   if((ADMIN||STAFF)&&ah){
+     const reconnA=async()=>{ if(await ensurePerm(ah)){ setAssets(ah);
+         ['assetPath','assetPath2'].forEach(id=>{const e=$(id); if(e){e.style.cursor='';e.onclick=null;}});
+         const ps=await intakePeers();
+         $('status').className='status ok';
+         $('status').textContent='Assets root reconnected — '+ps.length+' intake folder(s): '+ps.map(p=>p.name).join(', '); }
+       else { ['assetPath','assetPath2'].forEach(id=>{const e=$(id); if(e) e.textContent='Reconnect denied — use Choose folder.';}); } };
+     offerOn(['assetPath','assetPath2'], ah.name, reconnA);
+   }}
+  if(ADMIN||STAFF){
     const mh=await hGet('masters');
     if(mh){
       const reconnM=async()=>{
@@ -1145,6 +1256,50 @@ async function openFlagged(it,notes){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
+/* ---- v15.15: staff flags -------------------------------------------------
+   Staff can see 01_MASTERS to check dims against the finished images, but has no
+   power to move anything. A flag is a note to the admin, nothing more: it does not
+   recall the set, does not touch the editor, does not move a file. It fans out to
+   every intake folder so the admin sees it whichever one they open. */
+function flagName(cls,pid,fab){ return cls+'__'+pid+'__'+fab+'.json'; }
+async function readFlags(){
+  const out=[];
+  try{ const d=await dirFor(S.root,['_FLAGS']);
+    for(const f of await listFiles(d)){
+      if(!/\.json$/i.test(f.name)) continue;
+      try{ const o=JSON.parse(await (await f.handle.getFile()).text()); o._file=f.name; out.push(o); }catch(e){}
+    }
+  }catch(e){}
+  out.sort((a,b)=>String(b.at||'').localeCompare(String(a.at||'')));
+  S.flags=out; return out;
+}
+async function raiseFlag(cls,pid,fab,message){
+  const rec={cls:cls,product:pid,variant:fab,message:message,by:WHO||ROLE,at:new Date().toISOString()};
+  const res=await sharedWrite('_FLAGS',flagName(cls,pid,fab),rec);
+  logEvent('masters.flag_to_admin',{cls:cls,product:pid,variant:fab,message:message,
+    folders:res.ok,failed:res.failed.length?res.failed:undefined});
+  return res;
+}
+async function resolveFlag(file){
+  await sharedDelete('_FLAGS',[file]);
+  logEvent('masters.flag_resolved',{file:file});
+  await readFlags(); renderFlags();
+}
+function renderFlags(){
+  const box=$('flagBox'); if(!box) return;
+  const n=(S.flags||[]).length;
+  const pill=$('mastPill');
+  if(pill){ pill.textContent=n; pill.style.display=n?'inline-block':'none'; }
+  if(!n){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML='<div class="fl-hd">'+n+' flag(s) raised by staff</div>'+
+    S.flags.map(f=>'<div class="fl-row"><div class="grow"><b>'+esc(f.product||'')+' · '+esc(f.variant||'')+'</b>'+
+      '<span class="fl-by">'+esc(f.by||'')+' · '+esc((f.at||'').slice(0,16).replace('T',' '))+'</span>'+
+      '<div class="fl-msg">'+esc(f.message||'')+'</div></div>'+
+      (ADMIN?'<button class="small" data-flr="'+esc(f._file)+'">Resolve</button>':'')+'</div>').join('');
+  box.querySelectorAll('[data-flr]').forEach(b=>b.onclick=()=>resolveFlag(b.dataset.flr));
+}
+
 /* ---------- v5: status, refs, product panel, masters ---------- */
 async function readStatus(){
   try{const d=await dirFor(S.root,['_STATUS']);const h=await d.getFileHandle('status.json');
@@ -1198,17 +1353,19 @@ async function uploadVariantRef(pid,variant,cb){
   i.onchange=async e=>{
     const f=e.target.files[0]; if(!f) return;
     const ext=(f.name.split('.').pop()||'jpg').toLowerCase();
-    const d=await dirFor(S.root,['_REFS'],true);
-    for(const x of REF_EXTS){ try{await d.removeEntry(vrefStem(pid,variant)+'.'+x);}catch(err){} }
-    const h=await d.getFileHandle(vrefStem(pid,variant)+'.'+(REF_EXTS.includes(ext)?ext:'jpg'),{create:true});
-    const w=await h.createWritable(); await w.write(f); await w.close();
+    const keep=vrefStem(pid,variant)+'.'+(REF_EXTS.includes(ext)?ext:'jpg');
+    await sharedDelete('_REFS',REF_EXTS.map(x=>vrefStem(pid,variant)+'.'+x).filter(n=>n!==keep));
+    const res=await sharedWrite('_REFS',keep,f);                      // v15.15
+    fanoutNote(res,'Swatch photo for '+pid+' · '+variant);
+    logEvent('variant_ref.save',{product:pid,variant:variant,file:keep,folders:res.ok,
+      failed:res.failed.length?res.failed:undefined});
     delete S.refCache['v:'+pid+'::'+variant];
     if(cb) cb();
   };
   i.click();
 }
 async function removeVariantRef(pid,variant){
-  try{const d=await dirFor(S.root,['_REFS']); for(const e of REF_EXTS){ try{await d.removeEntry(vrefStem(pid,variant)+'.'+e);}catch(err){} }}catch(e){}
+  await sharedDelete('_REFS',REF_EXTS.map(e=>vrefStem(pid,variant)+'.'+e));   // v15.15
   delete S.refCache['v:'+pid+'::'+variant];
 }
 async function variantHasUploads(cls,pid,variant){
@@ -1231,13 +1388,21 @@ async function uploadRef(pid){
     try{ await (await d.getFileHandle(keep)).getFile(); }
     catch(err){ wbFail('The identifier photo for '+pid+' did not save — the old one is untouched', err); return; }
     for(const x of REF_EXTS){ if(pid+'.'+x===keep) continue; try{await d.removeEntry(pid+'.'+x);}catch(err){} }
+    /* v15.15: same file into every other intake folder, old extensions cleared there too */
+    await sharedDelete('_REFS',REF_EXTS.filter(x=>pid+'.'+x!==keep).map(x=>pid+'.'+x));
+    const res=await sharedWrite('_REFS',keep,f); fanoutNote(res,'Reference photo for '+pid);
+    logEvent('ref.save',{product:pid,file:keep,folders:res.ok,failed:res.failed.length?res.failed:undefined});
     delete S.refCache[pid]; buildPanel();
   };
   i.click();
 }
 /* ---- v11: staff-defined variants (_VARIANTS/<pid>.json) ---- */
 async function readVars(pid){ try{const d=await dirFor(S.root,['_VARIANTS']);const h=await d.getFileHandle(pid+'.json');return JSON.parse(await (await h.getFile()).text());}catch(e){return null;} }
-async function writeVars(pid,obj){ const d=await dirFor(S.root,['_VARIANTS'],true); await writeJSON(d,pid+'.json',obj); }
+async function writeVars(pid,obj){                                  // v15.15: every intake folder
+  const res=await sharedWrite('_VARIANTS',pid+'.json',obj);
+  fanoutNote(res,'Variants for '+pid);
+  logEvent('variants.save',{product:pid,folders:res.ok,failed:res.failed.length?res.failed:undefined});
+  return res; }
 let VP=null;
 async function openVars(p){
   if(!S.root){alert('Choose your Intake folder first.');return;}
@@ -1679,7 +1844,10 @@ async function readDimsFile(pid){
     return JSON.parse(await (await h.getFile()).text());}catch(e){return null;}
 }
 async function writeDimsFile(pid,obj){
-  const d=await dirFor(S.root,['_DIMS'],true); await writeJSON(d,pid+'.json',obj);
+  const res=await sharedWrite('_DIMS',pid+'.json',obj);             // v15.15: every intake folder
+  fanoutNote(res,'Dims for '+pid);
+  logEvent('dims.save',{product:pid,status:obj&&obj.status,folders:res.ok,failed:res.failed.length?res.failed:undefined});
+  return res;
 }
 async function listDimsFiles(){
   const out=[]; if(!S.root) return out;
@@ -1697,7 +1865,7 @@ function fx(id){ $('ft_'+id).textContent=ftin(parseFloat($(id).value)); }
 ['dw','dd','dh','sd','sh','f2b','plh'].forEach(id=>{$(id).addEventListener('input',()=>fx(id));});
 async function removeRef(pid){
   if(!confirm('Remove the reference image for '+pid+'?')) return;
-  try{const d=await dirFor(S.root,['_REFS']); for(const e of REF_EXTS){ try{await d.removeEntry(pid+'.'+e);}catch(err){} }}catch(e){}
+  await sharedDelete('_REFS',REF_EXTS.map(e=>pid+'.'+e));                    // v15.15
   delete S.refCache[pid]; buildPanel();
 }
 async function openDims(p,readonly){
@@ -1735,7 +1903,7 @@ $('doSave').onclick=async()=>{
   if(!(w>0&&d>0&&h>0)){ $('doStatus').className='status err'; $('doStatus').textContent='Width, depth and height are required — in metres, above 0.'; return; }
   const dims={w:w,d:d,h:h,seat_depth:parseFloat($('sd').value)||null};
   const idims={seat_height:parseFloat($('sh').value)||null,f2b_depth:parseFloat($('f2b').value)||null,platform_height:parseFloat($('plh').value)||null};
-  await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,image_dims_m:idims,status:'pending',by:ROLE,updated:new Date().toISOString()});
+  await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,image_dims_m:idims,status:'pending',by:WHO,updated:new Date().toISOString()});
   $('doStatus').className='status ok'; $('doStatus').textContent='Saved — waiting for admin approval.';
   refreshQueues();
 };
@@ -1800,7 +1968,7 @@ async function openUploadsViewer(startPid){
   if(!MV.flat.length) return;
   MV.i=Math.max(0,MV.flat.findIndex(e=>e.it.pid===startPid));
   MV.open=true; $('mview').classList.add('on');
-  $('mvRecall').style.display='none'; $('mvDone').style.display='none'; {const r=$('mvReopen'); if(r) r.style.display='none';}
+  $('mvRecall').style.display='none'; $('mvDone').style.display='none'; {const r=$('mvReopen'); if(r) r.style.display='none';} {const g=$('mvFlag'); if(g) g.style.display='none';}
   showMV();
 }
 async function updateProdHead(){
@@ -1982,6 +2150,7 @@ async function buildMasters(){
      image. The old chevron-by-chevron viewer is still there — clicking an image
      opens it at that exact frame. */
   const G=$('mgrid');
+  await readFlags(); renderFlags();
   if(!S.masters){ G.innerHTML='<div class="qempty">Choose the 01_MASTERS folder first (folder pickers above).</div>'; $('mCount').textContent=''; return; }
   const items=await walkMasters();
   if(!items.length){ G.innerHTML='<div class="qempty">Nothing approved yet.</div>'; $('mCount').textContent=''; return; }
@@ -2050,6 +2219,7 @@ async function openViewerAt(pidk,fabk,name){
 async function openViewer(startPid){
   $('mvRecall').style.display=ADMIN?'':'none'; {const r=$('mvReopen'); if(r) r.style.display=ADMIN?'':'none';}
   $('mvDone').style.display=ADMIN?'':'none';
+  {const g=$('mvFlag'); if(g) g.style.display=STAFF?'':'none';}   // v15.15: staff raise, never move
   const items=await walkMasters();
   MV.flat=[];
   for(const it of items){
@@ -2100,6 +2270,17 @@ $('revPull').onclick=async()=>{
   $('status').textContent='Pulled back '+it.pid+' · '+it.fab+' — add your comments, then flag it again or approve.';
   $('revDetail').style.display='none'; {const lc=$('revListCard'); if(lc) lc.style.display='block';}
   S.revItem=null; await refreshQueues();
+};
+$('mvFlag').onclick=async()=>{
+  const e=MV.flat[MV.i]; if(!e) return;
+  const msg=prompt('What is wrong with '+e.it.pid+' · '+e.it.fab+'?\n\nThis tells the admin. It does not move the set or reach the editor.');
+  if(msg===null) return;
+  if(!msg.trim()){alert('A flag needs a note, or the admin is guessing.');return;}
+  try{ wbClearFail(); const res=await raiseFlag(e.it.cls,e.it.pid,e.it.fab,msg.trim());
+       fanoutNote(res,'Flag on '+e.it.pid); }
+  catch(err){ wbFail('Could not raise the flag', err); return; }
+  MV.open=false;$('mview').classList.remove('on');
+  await readFlags(); renderFlags();
 };
 $('mvRecall').onclick=async()=>{
   const e=MV.flat[MV.i]; if(!e) return;
@@ -2598,7 +2779,7 @@ async function sendForReview(){
   const man={id:id,fabric_code:f,class:S.cls,submitted:new Date().toISOString(),slots:{}};
   for(const sk of slotKeys()) if(S.files[sk.key]) man.slots[sk.key]={file:S.files[sk.key].name||fname(sk,'jpg'),slot:sk.k};
   await writeJSON(td,'manifest.json',man);
-  await writeJSON(td,'READY.json',{sent:new Date().toISOString(),by:ROLE});
+  await writeJSON(td,'READY.json',{sent:new Date().toISOString(),by:WHO});
   logEvent('set.send_for_review',{cls:S.cls,product:id,variant:f,
     images:Object.keys(man.slots).length, missing:missing.length?missing:undefined,
     graduated_from_rework:!!S.rework});                                    // v15.5
