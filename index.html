@@ -59,6 +59,11 @@ async function xlsxReady(){
   select:disabled{background:var(--panel);color:var(--muted)}
   .hint{font-size:12px;color:var(--muted)}
   .dim input{min-width:86px;width:86px}
+  #covBox{display:none;margin:10px 0;border:1px solid #b8860b;border-radius:6px;overflow:hidden}
+  .cov-hd{background:#b8860b;color:#fff;font:600 12px var(--mono);padding:6px 10px;text-transform:uppercase;letter-spacing:.06em}
+  .cov-row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-top:1px solid #eee}
+  .cov-row .grow{flex:1;font:13px var(--sans)}
+  .cov-msg{font:11px var(--mono);color:#8a7a6a;margin-top:3px;word-break:break-word}
   #flagBox{display:none;margin:10px 0;border:1px solid var(--terracotta);border-radius:6px;overflow:hidden}
   .fl-hd{background:var(--terracotta);color:#fff;font:600 12px var(--mono);padding:6px 10px;text-transform:uppercase;letter-spacing:.06em}
   .fl-row{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-top:1px solid #eee}
@@ -405,6 +410,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 </div>
 <div id="mastArea" style="display:none">
   <div id="flagBox"></div>
+  <div id="covBox"></div>
   <div class="card"><h2>Approved masters</h2>
   <div class="row" style="margin-bottom:12px">
     <div class="f"><label>Class</label><select id="mSelCls"><option value="">— all —</option></select></div>
@@ -607,7 +613,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.15';
+const APP_VERSION='v15.17';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -880,6 +886,86 @@ async function copyInto(src,dst,stripLock){
         '. NOTHING was deleted. Fix the cause and try again.');
     }
   }
+/* ---- v15.16: compression lives here now ---------------------------------------
+   Approving a set used to write 01_MASTERS and stop. 02_WEB was produced later by a
+   separate Python script somebody had to remember to run, and between the two the web
+   tree was silently out of date — on 18 Aug five approved sets had no web copy at all.
+   Now the web copy is written in the same action that writes the master, from the
+   master's own bytes, so the two cannot drift.
+
+   Settings match woodbun_compress.py so the output is interchangeable with everything
+   already on the CDN: quality 82, one retry at 70 for anything still over 900 KB,
+   longest side clamped to 2048. The browser's JPEG encoder is not byte-identical to
+   libjpeg — sizes land in the same band, not on the same number. */
+const WEB_Q=0.82, WEB_RETRY_Q=0.70, WEB_RETRY_ABOVE=900*1024, WEB_MAX_SIDE=2048;
+/* v15.17: below this, the master IS the web copy — copied byte for byte instead of
+   re-encoded. Measured on the catalogue: compressing the 20 already-done files under
+   this size saved 782 KB in total, an average of 25%, in exchange for a second
+   generation of JPEG loss on each. That is a bad trade, so we stop making it. Above
+   the threshold the saving is 85-90% and the encoder earns its place. */
+const WEB_PASSTHROUGH_MAX=350*1024;
+
+async function webRoot(create){
+  if(!S.assets) throw new Error('the Assets root is not set — choose “Woodbun Assets” in the folder row, then approve again');
+  return await dirFor(S.assets,['02_WEB'],!!create);
+}
+async function encodeWeb(file){
+  const bmp=await createImageBitmap(file);
+  let w=bmp.width,h=bmp.height;
+  const sc=Math.min(1,WEB_MAX_SIDE/Math.max(w,h));
+  w=Math.round(w*sc); h=Math.round(h*sc);
+  const cv=(typeof OffscreenCanvas!=='undefined')?new OffscreenCanvas(w,h):Object.assign(document.createElement('canvas'),{width:w,height:h});
+  const cx=cv.getContext('2d');
+  cx.drawImage(bmp,0,0,w,h);
+  if(bmp.close) bmp.close();
+  const toBlob=q=>cv.convertToBlob
+      ? cv.convertToBlob({type:'image/jpeg',quality:q})
+      : new Promise(r=>cv.toBlob(r,'image/jpeg',q));
+  let out=await toBlob(WEB_Q), q=WEB_Q;
+  if(out && out.size>WEB_RETRY_ABOVE){ const t=await toBlob(WEB_RETRY_Q); if(t&&t.size<out.size){ out=t; q=WEB_RETRY_Q; } }
+  if(!out) throw new Error('the browser could not encode a JPEG');
+  return {blob:out,w:w,h:h,q:q};
+}
+/* v15.17: a small master may be copied instead of re-encoded, but ONLY if it is
+   genuinely web-ready. Passthrough trusts nothing about the filename — the bytes are
+   sniffed for a real JPEG, the component count must be 3 (RGB, not greyscale or CMYK)
+   and the frame must be exactly 2048 square. Anything that fails goes through the
+   encoder as before, which normalises it. A non-compliant file can never reach the CDN
+   untouched just because it happened to be small. */
+async function webPassthroughOk(file){
+  if(file.size>WEB_PASSTHROUGH_MAX) return false;
+  try{
+    const sn=await sniffJpeg(file);
+    if(!sn.jpeg || sn.comps!==3) return false;
+    if(sn.w!==WEB_MAX_SIDE || sn.h!==WEB_MAX_SIDE) return false;
+    return true;
+  }catch(e){ return false; }
+}
+/* Writes the web copies for one set FROM the master files. Never throws on a single
+   file — it reports. A set that half-compressed must be visible, not silently short. */
+async function compressSetToWeb(cls,pid,fab,srcDir){
+  const dst=await dirFor(await webRoot(true),[cls,pid,fab],true);
+  const ok=[],failed=[]; let inB=0,outB=0,passed=0;
+  for(const f of await listFiles(srcDir)){
+    if(!/\.(jpg|jpeg|png|webp)$/i.test(f.name)) continue;
+    const outName=unlockedName(f.name).replace(/\.(jpe?g|png|webp)$/i,'.jpg');
+    try{
+      const file=await f.handle.getFile();
+      const pass=await webPassthroughOk(file);
+      let payload,q,w,h;
+      if(pass){ payload=file; q=null; w=WEB_MAX_SIDE; h=WEB_MAX_SIDE; }
+      else { const enc=await encodeWeb(file); payload=enc.blob; q=enc.q; w=enc.w; h=enc.h; }
+      const fh=await dst.getFileHandle(outName,{create:true});
+      const wr=await fh.createWritable(); await wr.write(payload); await wr.close();
+      const back=await (await dst.getFileHandle(outName)).getFile();
+      if(!back.size) throw new Error('wrote 0 bytes');
+      if(pass && back.size!==file.size) throw new Error('passthrough landed at the wrong size');
+      inB+=file.size; outB+=back.size; if(pass) passed++;
+      ok.push({name:outName,bytes:back.size,q:q,w:w,h:h,passthrough:pass});
+    }catch(e){ failed.push({name:outName,err:e.message}); }
+  }
+  return {ok,failed,inB,outB,passed};
+}
 async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admin-only)
   invalidateWalk();
   const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
@@ -897,10 +983,21 @@ async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admi
       const w=await h.createWritable(); await w.write(file); await w.close();
     }
   }catch(e){ wbFail('Approved, but the shoot record did not travel with it', e); }
+  /* v15.16: the web copy, from the master bytes, in the same action. Deliberately not
+     fatal — 01_MASTERS is the archive and must land even if the encoder hiccups — but
+     never silent: a shortfall goes red in the status bar, into the log, and shows up on
+     the Masters screen as a set needing compression. */
+  let webres=null;
+  try{ webres=await compressSetToWeb(it.cls,it.pid,it.fab,dst); }
+  catch(e){ webres={ok:[],failed:[{name:'(whole set)',err:e.message}],inB:0,outB:0}; }
   const parent=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
   logEvent('set.approve',{cls:it.cls,product:it.pid,variant:it.fab,
-    files:Object.keys(want).length,to:'01_MASTERS'});                      // v15.5
+    files:Object.keys(want).length,to:'01_MASTERS',
+    web_written:webres.ok.length, web_failed:webres.failed.length?webres.failed:undefined,
+    web_in_kb:Math.round(webres.inB/1024), web_out_kb:Math.round(webres.outB/1024)});   // v15.5 / v15.16
+  it._web=webres;
+  return webres;
 }
 async function reopenToReview(it){        // v15.12: 01_MASTERS -> _INBOX, every image pre-accepted
   invalidateWalk();
@@ -2145,6 +2242,77 @@ async function walkMasters(){
   out.sort((a,b)=>a.pid.localeCompare(b.pid)||a.fab.localeCompare(b.fab));
   return out;
 }
+/* ---- v15.16: web coverage ------------------------------------------------------
+   Compression on approve stops NEW holes. This finds the ones already there, and any
+   set whose master was re-approved after its web copy was made. It is the check whose
+   absence let five sets sit uncompressed for five days. */
+async function webCoverage(items){
+  const out={missing:[],stale:[],ok:0,unavailable:null};
+  let wr=null;
+  try{ wr=await webRoot(false); }
+  catch(e){ out.unavailable=e.message; return out; }
+  for(const it of items){
+    let wd=null;
+    try{ wd=await dirFor(wr,[it.cls,it.pid,it.fab]); }
+    catch(e){ out.missing.push(it); continue; }
+    const mf=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name));
+    const wf=(await listFiles(wd)).filter(f=>/\.jpg$/i.test(f.name));
+    if(!wf.length){ out.missing.push(it); continue; }
+    let mNew=0,wNew=0;
+    for(const f of mf) mNew=Math.max(mNew,(await f.handle.getFile()).lastModified||0);
+    for(const f of wf) wNew=Math.max(wNew,(await f.handle.getFile()).lastModified||0);
+    const names=new Set(wf.map(f=>f.name));
+    const short=mf.filter(f=>!names.has(unlockedName(f.name).replace(/\.(jpe?g|png|webp)$/i,'.jpg')));
+    if(short.length){ out.missing.push(it); continue; }
+    if(mNew>wNew+1000){ out.stale.push(it); continue; }
+    out.ok++;
+  }
+  return out;
+}
+async function repairWeb(list){
+  const btn=$('covGo'); if(btn){ btn.disabled=true; }
+  let done=0,files=0,fail=0,inB=0,outB=0,passed=0;
+  for(const it of list){
+    {const hd=$('covBox')&&$('covBox').querySelector('.cov-hd');
+     if(hd) hd.textContent='Compressing '+(done+1)+' of '+list.length+' — '+it.pid+' · '+it.fab+'…';}
+    try{
+      const r=await compressSetToWeb(it.cls,it.pid,it.fab,it.handle);
+      files+=r.ok.length; fail+=r.failed.length; inB+=r.inB; outB+=r.outB; passed+=r.passed||0;
+      logEvent('web.compress',{cls:it.cls,product:it.pid,variant:it.fab,
+        files:r.ok.length,passthrough:r.passed||0,failed:r.failed.length?r.failed:undefined,
+        in_kb:Math.round(r.inB/1024),out_kb:Math.round(r.outB/1024),source:'repair'});
+    }catch(e){ fail++; logEvent('web.compress',{cls:it.cls,product:it.pid,variant:it.fab,error:e.message}); }
+    done++;
+  }
+  const saved=inB?(100-Math.round(outB*100/inB)):0;
+  $('status').className=fail?'status err':'status ok';
+  $('status').textContent=fail
+    ? files+' web copy/copies written, '+fail+' failed — see the Activity log.'
+    : files+' web copy/copies written across '+done+' set(s) — '+Math.round(inB/1024)+' KB → '+Math.round(outB/1024)+' KB, '+saved+'% saved'+
+      (passed?'.  '+passed+' were already light enough to copy untouched.':'.');
+  if(btn) btn.disabled=false;
+  await buildMasters();
+}
+function renderCoverage(cov,items){
+  const box=$('covBox'); if(!box) return;
+  const need=cov.missing.concat(cov.stale);
+  if(cov.unavailable){
+    box.style.display='block';
+    box.innerHTML='<div class="cov-hd warnhd">Web coverage cannot be checked</div>'+
+      '<div class="cov-row"><div class="grow">'+esc(cov.unavailable)+'</div></div>';
+    return;
+  }
+  if(!need.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  const names=need.map(x=>x.pid+' · '+x.fab).join(', ');
+  box.innerHTML='<div class="cov-hd warnhd">'+need.length+' approved set(s) have no current web copy</div>'+
+    '<div class="cov-row"><div class="grow">'+
+      (cov.missing.length?'<b>'+cov.missing.length+' never compressed.</b> ':'')+
+      (cov.stale.length?'<b>'+cov.stale.length+' out of date</b> — the master was approved again after the web copy was made. ':'')+
+      '<div class="cov-msg">'+esc(names)+'</div></div>'+
+      '<button class="act" id="covGo">Compress missing</button></div>';
+  const b=$('covGo'); if(b) b.onclick=()=>repairWeb(need);
+}
 async function buildMasters(){
   /* v15.1: browse by class + product, everything on one screen, names under each
      image. The old chevron-by-chevron viewer is still there — clicking an image
@@ -2155,6 +2323,7 @@ async function buildMasters(){
   const items=await walkMasters();
   if(!items.length){ G.innerHTML='<div class="qempty">Nothing approved yet.</div>'; $('mCount').textContent=''; return; }
   MASTERS_CACHE=items;
+  webCoverage(items).then(c=>renderCoverage(c,items)).catch(e=>console.error('[woodbun] coverage',e));  // v15.16
 
   const clsSel=$('mSelCls'), pidSel=$('mSelPid'), fabSel=$('mSelFab');
   const classes=[...new Set(items.map(i=>i.cls))].sort();
@@ -2590,10 +2759,23 @@ $('revApprove').onclick=async()=>{
      return;
    }}
   if((S.revMissing||[]).length && !confirm('This set is incomplete — '+S.revMissing.length+' required image(s) never uploaded ('+S.revMissing.join(', ')+').\n\nApprove to 01_MASTERS anyway?'))return;
-  try{ wbClearFail(); await approveItem(S.revItem); await markApproved(S.revItem); }
+  let web=null;
+  try{ wbClearFail(); web=await approveItem(S.revItem); await markApproved(S.revItem); }
   catch(e){ wbFail('Approve failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
   clearDraft(S.revItem);                       // v15.3: deliberately discarded
-  $('status').className='status ok'; $('status').textContent='Approved — '+S.revItem.pid+' · '+S.revItem.fab+' moved to 01_MASTERS.';
+  {const pid_=S.revItem.pid, fab_=S.revItem.fab;
+   const saved=(web&&web.inB)?(100-Math.round(web.outB*100/web.inB)):0;
+   if(web&&web.failed.length){
+     $('status').className='status err';
+     $('status').textContent='Approved — '+pid_+' · '+fab_+' in 01_MASTERS, but '+web.failed.length+
+       ' web copy/copies FAILED: '+web.failed.map(f=>f.name+' ('+f.err+')').join(', ')+
+       '  — open Masters and use “Compress missing”.';
+   }else{
+     $('status').className='status ok';
+     $('status').textContent='Approved — '+pid_+' · '+fab_+' → 01_MASTERS, and '+web.ok.length+
+       ' web copy/copies written to 02_WEB ('+Math.round(web.inB/1024)+' KB → '+Math.round(web.outB/1024)+' KB, '+saved+'% saved'+
+       (web.passed?', '+web.passed+' already light enough to copy untouched':'')+').';
+   }}
   $('revDetail').style.display='none'; {const lc=$('revListCard'); if(lc) lc.style.display='block';} S.revItem=null; await refreshQueues();
 };
 $('revFlag').onclick=async()=>{
