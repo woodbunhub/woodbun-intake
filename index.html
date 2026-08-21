@@ -59,6 +59,17 @@ async function xlsxReady(){
   select:disabled{background:var(--panel);color:var(--muted)}
   .hint{font-size:12px;color:var(--muted)}
   .dim input{min-width:86px;width:86px}
+  /* v15.18: approve is 5-10 seconds of encoding. Without this the window just stops
+     responding and the only honest reading is "it has crashed". */
+  #busy{display:none;position:fixed;left:0;right:0;bottom:0;z-index:120;background:var(--ink,#2B2118);
+        color:#fff;padding:10px 16px;box-shadow:0 -6px 24px rgba(0,0,0,.28)}
+  #busy.on{display:block}
+  #busy .bwrap{display:flex;align-items:center;gap:14px;max-width:1100px;margin:0 auto}
+  #busy .btitle{font:600 13px var(--sans);white-space:nowrap}
+  #busy .bfile{font:11px var(--mono);opacity:.72;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #busy .btrack{flex:2;height:8px;background:rgba(255,255,255,.22);border-radius:99px;overflow:hidden}
+  #busy .btrack>i{display:block;height:100%;width:0;background:var(--terracotta);transition:width .18s}
+  #busy .bnum{font:650 13px var(--mono);white-space:nowrap}
   #covBox{display:none;margin:10px 0;border:1px solid #b8860b;border-radius:6px;overflow:hidden}
   .cov-hd{background:#b8860b;color:#fff;font:600 12px var(--mono);padding:6px 10px;text-transform:uppercase;letter-spacing:.06em}
   .cov-row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-top:1px solid #eee}
@@ -444,6 +455,12 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   <div class="card"><h2>Uploaded images</h2>
   <div class="prow-list" id="ulist"><div class="qempty">Choose your Intake folder first.</div></div></div>
 </div>
+<div id="busy"><div class="bwrap">
+  <span class="btitle" id="busyTitle">Working…</span>
+  <span class="btrack"><i id="busyBar"></i></span>
+  <span class="bnum" id="busyNum"></span>
+  <span class="bfile" id="busyFile"></span>
+</div></div>
 <div id="mkOv">
   <div id="mkWrap"><canvas id="mkCanvas"></canvas></div>
   <div class="mkbar"><span id="mkTitle"></span><span class="sp"></span>
@@ -613,7 +630,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.17';
+const APP_VERSION='v15.18';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -943,11 +960,15 @@ async function webPassthroughOk(file){
 }
 /* Writes the web copies for one set FROM the master files. Never throws on a single
    file — it reports. A set that half-compressed must be visible, not silently short. */
-async function compressSetToWeb(cls,pid,fab,srcDir){
+async function compressSetToWeb(cls,pid,fab,srcDir,onStep){
   const dst=await dirFor(await webRoot(true),[cls,pid,fab],true);
   const ok=[],failed=[]; let inB=0,outB=0,passed=0;
-  for(const f of await listFiles(srcDir)){
-    if(!/\.(jpg|jpeg|png|webp)$/i.test(f.name)) continue;
+  /* sorted so the progress bar counts up 01, 02, 03 rather than in whatever order the
+     filesystem happens to hand them back */
+  const imgs=(await listFiles(srcDir)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name))
+              .sort((x,y)=>x.name.localeCompare(y.name));
+  let done=0;
+  for(const f of imgs){
     const outName=unlockedName(f.name).replace(/\.(jpe?g|png|webp)$/i,'.jpg');
     try{
       const file=await f.handle.getFile();
@@ -963,16 +984,26 @@ async function compressSetToWeb(cls,pid,fab,srcDir){
       inB+=file.size; outB+=back.size; if(pass) passed++;
       ok.push({name:outName,bytes:back.size,q:q,w:w,h:h,passthrough:pass});
     }catch(e){ failed.push({name:outName,err:e.message}); }
+    done++;
+    /* the encoder blocks the main thread for a beat per image; handing control back
+       here is what lets the bar actually paint instead of the page looking frozen */
+    if(onStep){ onStep(done,imgs.length,outName); await new Promise(r=>setTimeout(r,0)); }
   }
   return {ok,failed,inB,outB,passed};
 }
-async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admin-only)
+async function approveItem(it,onStep){    // _INBOX (editor) -> 01_MASTERS (admin-only)
   invalidateWalk();
   const src=await dirFor(S.root,['_INBOX',it.cls,it.pid,it.fab]);
   const dst=await dirFor(S.masters,[it.cls,it.pid,it.fab],true);
   const want=await copyInto(src,dst,true);  // v15.1 (C2): drop the .LOCKED marker on entry
   await verifyCopy(want,dst);              // v15 (A2): prove it, THEN delete
-  try{await dst.removeEntry('READY.json');}catch(e){}  // v15 (D): masters holds photographs, not queue paperwork
+  /* v15 (D) / v15.18: masters holds photographs, not queue paperwork. READY, manifest
+     and notes describe a set's passage through the queue and mean nothing once it has
+     landed. SHOOT.json is the exception and must survive — the converter reads dims
+     from it via --assets. */
+  for(const junk of ['READY.json','manifest.json','notes.json']){
+    try{ await dst.removeEntry(junk); }catch(e){}
+  }
   try{                                     // carry the shoot record up with it
     const tp=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
     const mp=await dirFor(S.masters,[it.cls,it.pid],true);
@@ -988,7 +1019,7 @@ async function approveItem(it){           // _INBOX (editor) -> 01_MASTERS (admi
      never silent: a shortfall goes red in the status bar, into the log, and shows up on
      the Masters screen as a set needing compression. */
   let webres=null;
-  try{ webres=await compressSetToWeb(it.cls,it.pid,it.fab,dst); }
+  try{ webres=await compressSetToWeb(it.cls,it.pid,it.fab,dst,onStep); }
   catch(e){ webres={ok:[],failed:[{name:'(whole set)',err:e.message}],inB:0,outB:0}; }
   const parent=await dirFor(S.root,['_INBOX',it.cls,it.pid]);
   await parent.removeEntry(it.fab,{recursive:true});
@@ -1683,6 +1714,25 @@ async function renameInPlace(dirHandle,from,to){
   if(check.size!==file.size) throw new Error('renaming '+from+' did not land at the right size');
   await dirHandle.removeEntry(from);           // only once the copy is proved
 }
+/* ---- v15.18: the busy bar ------------------------------------------------------
+   One bar, driven by whatever long job is running. Every caller reports (done,total)
+   and yields, so the browser gets a frame to paint between images. */
+function busyOn(title){
+  const b=$('busy'); if(!b) return;
+  $('busyTitle').textContent=title||'Working…';
+  $('busyNum').textContent=''; $('busyFile').textContent='';
+  $('busyBar').style.width='0%';
+  b.classList.add('on');
+}
+function busyStep(done,total,label){
+  if(!$('busy')) return;
+  const pct=total?Math.round(done*100/total):0;
+  $('busyBar').style.width=pct+'%';
+  $('busyNum').textContent=done+' / '+total;
+  if(label!==undefined) $('busyFile').textContent=label||'';
+}
+function busyOff(){ const b=$('busy'); if(b) b.classList.remove('on'); }
+
 /* ---- v15.12: red mark-up ------------------------------------------------
    The reviewer draws on a copy of the image. The original is never touched. The
    marked copy is written into the rework set's _MARKUP subfolder when the set is
@@ -2272,11 +2322,16 @@ async function webCoverage(items){
 async function repairWeb(list){
   const btn=$('covGo'); if(btn){ btn.disabled=true; }
   let done=0,files=0,fail=0,inB=0,outB=0,passed=0;
+  const totalFiles=list.length; busyOn('Compressing '+list.length+' set(s)…');
+  await new Promise(r=>setTimeout(r,0));
   for(const it of list){
     {const hd=$('covBox')&&$('covBox').querySelector('.cov-hd');
      if(hd) hd.textContent='Compressing '+(done+1)+' of '+list.length+' — '+it.pid+' · '+it.fab+'…';}
     try{
-      const r=await compressSetToWeb(it.cls,it.pid,it.fab,it.handle);
+      const r=await compressSetToWeb(it.cls,it.pid,it.fab,it.handle,(d,t,nm)=>{
+        $('busyTitle').textContent='Set '+(done+1)+' of '+totalFiles+' — '+it.pid+' · '+it.fab;
+        busyStep(d,t,nm);
+      });
       files+=r.ok.length; fail+=r.failed.length; inB+=r.inB; outB+=r.outB; passed+=r.passed||0;
       logEvent('web.compress',{cls:it.cls,product:it.pid,variant:it.fab,
         files:r.ok.length,passthrough:r.passed||0,failed:r.failed.length?r.failed:undefined,
@@ -2290,6 +2345,7 @@ async function repairWeb(list){
     ? files+' web copy/copies written, '+fail+' failed — see the Activity log.'
     : files+' web copy/copies written across '+done+' set(s) — '+Math.round(inB/1024)+' KB → '+Math.round(outB/1024)+' KB, '+saved+'% saved'+
       (passed?'.  '+passed+' were already light enough to copy untouched.':'.');
+  busyOff();
   if(btn) btn.disabled=false;
   await buildMasters();
 }
@@ -2760,8 +2816,19 @@ $('revApprove').onclick=async()=>{
    }}
   if((S.revMissing||[]).length && !confirm('This set is incomplete — '+S.revMissing.length+' required image(s) never uploaded ('+S.revMissing.join(', ')+').\n\nApprove to 01_MASTERS anyway?'))return;
   let web=null;
-  try{ wbClearFail(); web=await approveItem(S.revItem); await markApproved(S.revItem); }
-  catch(e){ wbFail('Approve failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
+  const btns=['revApprove','revFlag','revPull'].map(id=>$(id)).filter(Boolean);
+  btns.forEach(b=>b.disabled=true);
+  busyOn('Approving '+S.revItem.pid+' · '+S.revItem.fab+' — copying to masters…');
+  await new Promise(r=>setTimeout(r,0));      // let the bar paint before the first blocking read
+  try{ wbClearFail();
+       web=await approveItem(S.revItem,(d,t,nm)=>{
+         $('busyTitle').textContent='Writing web copies…';
+         busyStep(d,t,nm);
+       });
+       await markApproved(S.revItem); }
+  catch(e){ busyOff(); btns.forEach(b=>b.disabled=false);
+            wbFail('Approve failed for '+S.revItem.pid+' — nothing was deleted', e); return; }
+  busyOff(); btns.forEach(b=>b.disabled=false);
   clearDraft(S.revItem);                       // v15.3: deliberately discarded
   {const pid_=S.revItem.pid, fab_=S.revItem.fab;
    const saved=(web&&web.inB)?(100-Math.round(web.outB*100/web.inB)):0;
