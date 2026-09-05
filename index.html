@@ -305,6 +305,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .mdl-v .ms{font:600 10px var(--mono);color:var(--muted)}
 .mdl-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .mdl-actions select.small{font:600 12px var(--sans);padding:6px 8px;min-width:0}
+.bulk{border-collapse:collapse;font:12px var(--sans);width:100%} .bulk th,.bulk td{border:1px solid var(--border);padding:5px 8px;text-align:left;white-space:nowrap} .bulk td:nth-child(3),.bulk td:nth-child(4){font-family:var(--mono);font-size:11.5px} .bulk tr.chg td{background:#FDF2EA} .bulk tr.ok td{background:var(--ok-bg)} .bulk tr.bad td{background:#F3E4E4}
 .mdl-path{font:11px var(--mono);color:var(--muted);word-break:break-all;flex:1;min-width:200px;user-select:all}
 .mdl-raws{display:flex;flex-direction:column;gap:6px}
 .rawrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
@@ -460,7 +461,14 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div id="modelsArea" style="display:none">
   <div class="card">
     <h2>Models <span class="hint" style="font-weight:400">— masters → Tripo views → raw GLB → 3D Lab → release GLB + USDZ, all under Woodbun Assets/03_MODELS</span>
-      <button class="small" id="mdlRefresh" style="float:right;font-weight:400">↻ Refresh</button></h2>
+      <button class="small" id="mdlRefresh" style="float:right;font-weight:400">↻ Refresh</button>
+      <button class="small" id="mdlBulk" style="float:right;font-weight:400;margin-right:8px">Bulk dims import</button></h2>
+    <div id="mdlBulkPanel" style="display:none;border:1px solid var(--border);border-radius:9px;padding:12px;margin-bottom:12px;background:var(--panel)">
+      <div class="hint" style="margin-bottom:6px">Paste rows as <code>pid,w,d,h,seat_depth</code> (metres; header row optional; seat_depth may be blank). <b>Preview</b> shows every change old → new. <b>Apply</b> writes SHOOT.json for each row and marks it VERIFIED — including rows that did not change, because you have just checked them.</div>
+      <textarea id="mdlBulkTxt" rows="6" style="width:100%;font:12px var(--mono);padding:8px;border:1px solid var(--border);border-radius:7px" placeholder="adri-corner-lhs,2.92,2.34,0.84,&#10;sage-corner-lhs,2.79,2.38,0.88,"></textarea>
+      <div class="row" style="margin-top:8px;align-items:center"><button class="small" id="mdlBulkPrev">Preview</button><button class="act" id="mdlBulkApply" disabled>Apply &amp; mark VERIFIED</button><span class="hint" id="mdlBulkMsg"></span></div>
+      <div id="mdlBulkTable" style="margin-top:8px;overflow-x:auto"></div>
+    </div>
     <div class="pfilter">
       <select id="mdlCls"><option value="">All classes</option></select>
       <select id="mdlSt"><option value="">Any stage</option><option value="none">Nothing yet</option><option value="raw">Raw GLB in</option><option value="released">Released</option></select>
@@ -477,6 +485,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <button class="small" id="labBack">‹ Models</button>
       <div class="f"><label>Product</label><div class="code" id="labProd">— open a product from Models —</div></div>
       <div class="f"><label>Raw try (Tripo output)</label><select id="labRaw" style="min-width:160px"></select></div>
+      <div class="f"><label>Compare in RESULT</label><select id="labCmp" style="min-width:160px"><option value="">same raw try</option></select></div>
       <div class="f"><label>Fabric / finish for this release</label><select id="labFab" style="min-width:160px"></select></div>
       <div style="flex:1"></div>
       <span class="hint" id="labVer"></span>
@@ -683,7 +692,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.1';
+const APP_VERSION='v16.4';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -2102,6 +2111,11 @@ $('doSave').onclick=async()=>{
   if(!DP) return;
   const w=parseFloat($('dw').value),d=parseFloat($('dd').value),h=parseFloat($('dh').value);
   if(!(w>0&&d>0&&h>0)){ $('doStatus').className='status err'; $('doStatus').textContent='Width, depth and height are required — in metres, above 0.'; return; }
+  /* v16.4: 18 Aug — eleven sofas were typed from the INCH column of the drawing (92 → 0.92 m)
+     and nothing stopped them. Metres for furniture live in a narrow band; anything outside
+     it is a unit mistake, not a small piece. */
+  { const bad=dimsPlausibility(DP.class||'',w,d,h,DP.id);
+    if(bad){ $('doStatus').className='status err'; $('doStatus').textContent=bad; return; } }
   const dims={w:w,d:d,h:h,seat_depth:parseFloat($('sd').value)||null};
   const idims={seat_height:parseFloat($('sh').value)||null,f2b_depth:parseFloat($('f2b').value)||null,platform_height:parseFloat($('plh').value)||null};
   await writeDimsFile(DP.id,{id:DP.id,class:DP.class||'',dims_m:dims,image_dims_m:idims,status:'pending',by:WHO,updated:new Date().toISOString()});
@@ -3120,6 +3134,19 @@ const MDL={items:null,byPid:null,filter:{cls:'',q:'',st:''},lab:{frame:null,read
 function localRoot(){ try{ return localStorage.getItem(LOCAL_ROOT_KEY)||LOCAL_ROOT_DEFAULT; }catch(e){ return LOCAL_ROOT_DEFAULT; } }
 function masterPath(cls,pid,fab){ return localRoot().replace(/[\\\/]+$/,'')+'\\01_MASTERS\\'+cls+'\\'+pid+'\\'+fab; }
 
+/* metres sanity band per class: [minW,maxW],[minD,maxD],[minH,maxH]. Returns a message or null. */
+function dimsPlausibility(cls,w,d,h,pid){
+  const c=(cls||'').split('-')[0];
+  if(c==='sofa'&&/-(corner|lounger)-/.test(pid||'')&&(w<1.5||d<1.5))
+    return 'Not saved: an L-shaped sofa cannot be '+w+' × '+d+' m — this is the INCH column typed as metres (92 in ≠ 0.92 m). Use the cm figure ÷ 100.';
+  const band={sofa:[[0.6,4.2],[0.6,4.2],[0.5,1.3]],bed:[[0.8,2.6],[1.6,2.6],[0.3,1.8]],wardrobe:[[0.5,3.2],[0.3,0.9],[1.5,2.6]],
+    dresser:[[0.3,2.0],[0.25,0.8],[0.6,2.2]],bedside:[[0.3,0.9],[0.3,0.9],[0.3,0.9]]}[c]||[[0.2,6],[0.2,6],[0.2,3]];
+  const chk=(v,r,l)=>(v<r[0]||v>r[1])?(l+' '+v+' m is outside '+r[0]+'–'+r[1]+' m for a '+(c||'product')):null;
+  const m=chk(w,band[0],'Width')||chk(d,band[1],'Depth')||chk(h,band[2],'Height');
+  if(!m) return null;
+  const inch=(w<1.6&&d<1.6&&c==='sofa')?' — this looks like the INCH column typed as metres (92 in ≠ 0.92 m). Use the cm figure ÷ 100.':'';
+  return 'Not saved: '+m+inch;
+}
 async function modelsRoot(create){
   if(!S.assets) throw new Error('the Assets root is not set — choose “Woodbun Assets” in the folder row');
   return await dirFor(S.assets,[MODELS_DIR],!!create);
@@ -3218,9 +3245,10 @@ async function mdlCard(it){
     '<div class="mdl-head"><img class="mdl-hero" alt="" style="display:none"><div class="grow">'+
       '<div class="pi-id">'+esc(it.pid)+'</div><div class="pi-meta">'+esc(it.cls)+' · '+it.fabs.length+' variant'+(it.fabs.length>1?'s':'')+' · '+esc(it.fabs.join(', '))+'</div>'+
       '<div class="badges">'+chips+'</div>'+(rel?'<div class="badges" style="margin-top:4px">'+rel+'</div>':'')+
-      '<div class="pi-meta" style="margin-top:6px"><b>Dims</b> '+esc(dimsTxt)+
+      '<div class="pi-meta" style="margin-top:6px"><b>Dims</b> '+esc(dimsTxt)+(dimsOk(sh)&&sh.dims_m.seat_depth?' · seat '+(+sh.dims_m.seat_depth).toFixed(2):'')+
         (dimsOk(sh)? ' <button class="small" data-a="verify">'+(sh.dims_status==='VERIFIED'?'Un-verify':'Mark dims verified')+'</button>':'')+
-      '</div></div></div>'+
+        ' <button class="small" data-a="editdims">Edit dims</button>'+
+      '</div><div class="dimsedit" data-a="dimsform" style="display:none"></div></div></div>'+
     '<div class="mdl-views" data-fab="'+esc(fab)+'"></div>'+
     '<div class="mdl-actions">'+
       (it.fabs.length>1?'<select class="small" data-a="fab">'+it.fabs.map(x=>'<option'+(x===fab?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>':'')+
@@ -3305,6 +3333,36 @@ async function mdlCard(it){
       await refreshCard(it,card);
     }catch(e){ say('Could not update SHOOT.json: '+e.message,true); }
   };
+  /* Edit dims: writes dims_m into SHOOT.json AND marks VERIFIED in one step — you are
+     looking at the photographs when you type these. Also refreshes _DIMS so the editor
+     reference strip does not keep showing the old numbers. */
+  const df=card.querySelector('[data-a=dimsform]');
+  card.querySelector('[data-a=editdims]').onclick=()=>{
+    const d=(sh&&sh.dims_m)||{}; const sofa=(it.cls==='sofa');
+    df.style.display='block';
+    df.innerHTML='<div class="row" style="align-items:flex-end;gap:8px;margin-top:6px">'+
+      ['w:Width (m)','d:Depth (m)','h:Height (m)'].concat(sofa?['seat_depth:Seat depth (m)']:[]).map(x=>{const [k,l]=x.split(':');
+        return '<div class="f"><label>'+l+'</label><input type="number" step="0.01" min="0" data-k="'+k+'" value="'+(d[k]!=null?d[k]:'')+'" style="min-width:90px;width:100px"></div>';}).join('')+
+      '<button class="act" data-a="dsave" style="padding:8px 14px;font-size:13px">Save &amp; mark verified</button><button class="small" data-a="dcancel">Cancel</button></div>'+
+      '<div class="hint">Overall footprint in metres, as on the supplier drawing — cm ÷ 100. Inches are NOT metres.</div>';
+    df.querySelector('[data-a=dcancel]').onclick=()=>{df.style.display='none';};
+    df.querySelector('[data-a=dsave]').onclick=async()=>{
+      try{
+        const v={}; df.querySelectorAll('input[data-k]').forEach(i=>{ const n=parseFloat(i.value); if(i.value!=='') v[i.dataset.k]=n; });
+        if(!(v.w>0&&v.d>0&&v.h>0)) throw new Error('W, D and H must all be > 0');
+        if(v.w>6||v.d>6||v.h>3) throw new Error('that is not metres — '+v.w+' × '+v.d+' × '+v.h+' is bigger than a room');
+        let s=(await readShoot(it.cls,it.pid))||{id:it.pid,class:it.cls};
+        const before=s.dims_m?Object.assign({},s.dims_m):null;
+        s.dims_m=Object.assign({},s.dims_m||{},{w:v.w,d:v.d,h:v.h}); if(sofa) s.dims_m.seat_depth=v.seat_depth!=null?v.seat_depth:(s.dims_m.seat_depth||null);
+        s.dims_status='VERIFIED'; s.dims_verified_at=new Date().toISOString(); s.dims_verified_by=WHO||ROLE; s.dims_approved=s.dims_approved||s.dims_verified_at; s.updated=s.dims_verified_at;
+        await writeShoot(it.cls,it.pid,s);
+        try{ const ex=await readDimsFile(it.pid); if(ex){ ex.dims_m=Object.assign({},ex.dims_m||{},s.dims_m); ex.status='approved'; ex.approved_at=s.dims_verified_at; await sharedWrite('_DIMS',it.pid+'.json',ex); } }catch(e){}
+        logEvent('model.dims_edited',{product:it.pid,before,after:s.dims_m});
+        say('Dims saved and marked VERIFIED: '+v.w+' × '+v.d+' × '+v.h+' m. Reopen the product in the lab; republish it for the website.');
+        await refreshCard(it,card);
+      }catch(e){ say('Not saved: '+e.message,true); }
+    };
+  };
   // raw drop
   const dz=card.querySelector('[data-a=drop]');
   const takeRaw=async files=>{
@@ -3351,6 +3409,80 @@ async function copyMasterToClipboard(mf){
 ['mdlCls','mdlQ','mdlSt'].forEach(id=>{ const el=$(id); if(!el) return;
   el.addEventListener(id==='mdlQ'?'input':'change',()=>{ MDL.filter={cls:$('mdlCls').value,q:$('mdlQ').value.trim(),st:$('mdlSt').value}; buildModels(); }); });
 {const r=$('mdlRefresh'); if(r) r.onclick=()=>buildModels();}
+/* ---- bulk dims import: one paste, one preview, one click ---- */
+let BULK=null;
+{const b=$('mdlBulk'); if(b) b.onclick=()=>{ const p=$('mdlBulkPanel'); p.style.display=p.style.display==='none'?'block':'none'; };}
+function parseBulkDims(txt){
+  const rows=[]; 
+  for(const raw of txt.split(/\r?\n/)){
+    const line=raw.trim(); if(!line) continue;
+    const c=line.split(/[,\t;]/).map(x=>x.trim());
+    if(/^pid$/i.test(c[0])) continue;
+    const pid=(c[0]||'').toLowerCase(); const n=k=>c[k]!==undefined&&c[k]!==''?parseFloat(c[k]):null;
+    rows.push({pid,w:n(1),d:n(2),h:n(3),seat_depth:n(4),line});
+  }
+  return rows;
+}
+async function bulkPreview(){
+  const msg=$('mdlBulkMsg'), tbl=$('mdlBulkTable'); $('mdlBulkApply').disabled=true; BULK=null;
+  if(!S.masters||!S.assets){ msg.textContent='Set 01_MASTERS and the Assets root first.'; return; }
+  const rows=parseBulkDims($('mdlBulkTxt').value);
+  if(!rows.length){ msg.textContent='Nothing to preview.'; return; }
+  const items=await modelsIndex(); const byPid=Object.fromEntries(items.map(i=>[i.pid,i]));
+  let ok=0,chg=0,bad=0;
+  const f2=v=>v==null?'—':(+v).toFixed(2);
+  const out=[];
+  for(const r of rows){
+    const it=byPid[r.pid]; let status='',cls='';
+    if(!it){ status='NOT FOUND (no approved masters with this id)'; bad++; }
+    else {
+      cls=it.cls;
+      if(!(r.w>0&&r.d>0&&r.h>0)) { status='INVALID — W, D, H required'; bad++; }
+      else { const p=dimsPlausibility(cls,r.w,r.d,r.h,r.pid); if(p){ status=p.replace(/^Not saved: /,'REJECTED — '); bad++; } }
+      if(!status){
+        const cur=(it.shoot&&it.shoot.dims_m)||{};
+        const same=Math.abs((cur.w||0)-r.w)<0.005&&Math.abs((cur.d||0)-r.d)<0.005&&Math.abs((cur.h||0)-r.h)<0.005&&((cur.seat_depth||null)===(r.seat_depth||null)||r.seat_depth==null);
+        status=same?'unchanged → mark VERIFIED':'CHANGE'; if(same) ok++; else chg++;
+        r.cur=cur; r.it=it; r.apply=true;
+      }
+    }
+    out.push('<tr class="'+(status.startsWith('CHANGE')?'chg':status.startsWith('unchanged')?'ok':'bad')+'"><td>'+esc(r.pid)+'</td><td>'+esc(cls)+'</td>'+
+      '<td>'+(r.cur?f2(r.cur.w)+' × '+f2(r.cur.d)+' × '+f2(r.cur.h)+(r.cur.seat_depth?' · s '+f2(r.cur.seat_depth):''):'—')+'</td>'+
+      '<td>'+(r.apply?f2(r.w)+' × '+f2(r.d)+' × '+f2(r.h)+(r.seat_depth!=null?' · s '+f2(r.seat_depth):(r.cur&&r.cur.seat_depth?' · s '+f2(r.cur.seat_depth)+' (kept)':'')):'—')+'</td>'+
+      '<td>'+esc(status)+'</td></tr>');
+  }
+  tbl.innerHTML='<table class="bulk"><tr><th>pid</th><th>class</th><th>current (SHOOT.json)</th><th>new</th><th>status</th></tr>'+out.join('')+'</table>';
+  msg.textContent=rows.length+' row(s): '+chg+' change, '+ok+' unchanged (verify only), '+bad+' rejected.';
+  BULK=rows.filter(r=>r.apply); $('mdlBulkApply').disabled=!BULK.length;
+  $('mdlBulkApply').textContent='Apply '+BULK.length+' & mark VERIFIED';
+}
+async function bulkApply(){
+  if(!BULK||!BULK.length) return;
+  const msg=$('mdlBulkMsg'); $('mdlBulkApply').disabled=true;
+  busyOn('Writing SHOOT.json'); let done=0,fail=[];
+  try{
+    for(const r of BULK){
+      busyStep(done,BULK.length,r.pid);
+      try{
+        let s=(await readShoot(r.it.cls,r.pid))||{id:r.pid,class:r.it.cls};
+        const before=s.dims_m?Object.assign({},s.dims_m):null;
+        s.dims_m=Object.assign({},s.dims_m||{},{w:r.w,d:r.d,h:r.h});
+        if(r.seat_depth!=null) s.dims_m.seat_depth=r.seat_depth;
+        const now=new Date().toISOString();
+        s.dims_status='VERIFIED'; s.dims_verified_at=now; s.dims_verified_by=WHO||ROLE; s.dims_approved=s.dims_approved||now; s.updated=now;
+        await writeShoot(r.it.cls,r.pid,s);
+        try{ const ex=await readDimsFile(r.pid); if(ex){ ex.dims_m=Object.assign({},ex.dims_m||{},s.dims_m); ex.status='approved'; ex.approved_at=now; await sharedWrite('_DIMS',r.pid+'.json',ex); } }catch(e){}
+        logEvent('model.dims_bulk',{product:r.pid,before,after:s.dims_m});
+        done++;
+      }catch(e){ fail.push(r.pid+' ('+e.message+')'); }
+      await new Promise(x=>setTimeout(x,0));
+    }
+  } finally { busyOff(); }
+  msg.textContent=done+' product(s) written and marked VERIFIED'+(fail.length?'; FAILED: '+fail.join(', '):'')+'. Republish the changed ids for the website.';
+  MDL.items=null; buildModels();
+}
+{const b=$('mdlBulkPrev'); if(b) b.onclick=()=>bulkPreview().catch(e=>wbFail('Bulk preview',e));}
+{const b=$('mdlBulkApply'); if(b) b.onclick=()=>bulkApply().catch(e=>wbFail('Bulk apply',e));}
 
 /* ---------- 3D LAB ---------- */
 async function labSource(){
@@ -3362,7 +3494,17 @@ async function ensureLab(){
   if(MDL.lab.frame&&MDL.lab.ready) return MDL.lab.frame;
   const host=$('labHost'); host.innerHTML='<div class="qempty">Loading the lab from Woodbun Assets/'+TOOLS_DIR+'/'+LAB_FILE+' …</div>';
   let file; try{ file=await labSource(); }
-  catch(e){ host.innerHTML='<div class="qempty">The lab file was not found at <b>Woodbun Assets/'+TOOLS_DIR+'/'+LAB_FILE+'</b>. Put lab.html there (it never goes online) and try again.<br><span class="hint">'+esc(e.message)+'</span></div>'; throw e; }
+  catch(e){
+    /* say what IS there, so a stray "lab (1).html" or a "tools" folder is obvious at a glance */
+    let found='';
+    try{ const names=[]; for await(const [n,h] of S.assets.entries()) names.push(n+(h.kind==='directory'?'/':''));
+      const tools=names.find(n=>n.toLowerCase()===TOOLS_DIR+'/');
+      if(!tools) found='No “'+TOOLS_DIR+'” folder in '+S.assets.name+'. Folders seen: '+names.filter(n=>n.endsWith('/')).sort().join(', ');
+      else { const d=await S.assets.getDirectoryHandle(TOOLS_DIR); const inside=[]; for await(const [n] of d.entries()) inside.push(n);
+        found=inside.length? ('Inside '+TOOLS_DIR+'/: '+inside.sort().join(', ')+' — none is exactly “'+LAB_FILE+'”.') : (TOOLS_DIR+'/ exists but is empty.'); }
+    }catch(_){}
+    host.innerHTML='<div class="qempty">The lab file was not found at <b>'+(S.assets?S.assets.name:'Woodbun Assets')+'/'+TOOLS_DIR+'/'+LAB_FILE+'</b>. Put lab.html there (it never goes online) and click 3D Lab again.<br><span class="hint">'+esc(found||e.message)+'</span></div>';
+    throw e; }
   const html=await file.text();
   if(MDL.lab.url) URL.revokeObjectURL(MDL.lab.url);
   MDL.lab.url=URL.createObjectURL(new Blob([html],{type:'text/html'}));
@@ -3382,6 +3524,7 @@ window.addEventListener('message',async e=>{
   const m=e.data; if(!m||typeof m!=='object') return;
   if(m.type==='wb:ready'){ MDL.lab.ready=true; MDL.lab.version=m.version; if(MDL.lab._onReady) MDL.lab._onReady(); return; }
   if(m.type==='wb:loaded'){ labSay('Loaded '+m.pid+' into the lab. Set triangles/texture/colour, Compress, then Save release.'); return; }
+  if(m.type==='wb:loadedB'){ return; }
   if(m.type==='wb:error'){ labSay('Lab: '+m.error,true); return; }
   if(m.type==='wb:export'){ try{ await saveRelease(m); }catch(err){ labSay('Release NOT saved — '+err.message,true); wbFail('Save release',err); } return; }
   if(m.type==='wb:usdz'){ try{ await saveUsdz(m); }catch(err){ labSay('USDZ NOT saved — '+err.message,true); wbFail('Save USDZ',err); } return; }
@@ -3401,6 +3544,7 @@ async function openInLab(it,fab,rawName){
     const raw=glbs.find(r=>r.name===rawName)||glbs.find(r=>r.name===MDL.lab.raw)||glbs[0];
     MDL.lab.raw=raw.name;
     const rs=$('labRaw'); rs.innerHTML=glbs.map(r=>'<option value="'+esc(r.name)+'"'+(r.name===raw.name?' selected':'')+'>try '+r.n+' · '+(r.size/1e6).toFixed(1)+' MB</option>').join('');
+    {const cs=$('labCmp'); if(cs) cs.innerHTML='<option value="">same raw try</option>'+glbs.filter(r=>r.name!==raw.name).map(r=>'<option value="'+esc(r.name)+'">try '+r.n+' · '+(r.size/1e6).toFixed(1)+' MB</option>').join('');}
     const rawFile=await raw.handle.getFile();
     const glb=await rawFile.arrayBuffer();
     const sh=await readShoot(it.cls,it.pid);
@@ -3415,6 +3559,18 @@ async function openInLab(it,fab,rawName){
 }
 {const fs=$('labFab'); if(fs) fs.onchange=()=>{ MDL.lab.fab=fs.value; if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],fs.value,MDL.lab.raw); };}
 {const rs=$('labRaw'); if(rs) rs.onchange=()=>{ if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],MDL.lab.fab,rs.value); };}
+/* a different try into the RESULT viewer only — try 1 vs try 2 side by side, photo overlay untouched */
+{const cs=$('labCmp'); if(cs) cs.onchange=async()=>{
+  try{
+    if(!MDL.lab.pid||!MDL.lab.frame) return;
+    const sc=await scanModel(MDL.lab.cls,MDL.lab.pid);
+    const name=cs.value||MDL.lab.raw; const r=sc.raws.find(x=>x.name===name&&x.ext==='glb');
+    if(!r) throw new Error(name+' not found in 03_MODELS');
+    const buf=await (await r.handle.getFile()).arrayBuffer();
+    MDL.lab.frame.contentWindow.postMessage({type:'wb:loadB',glbName:r.name,glb:buf},'*',[buf]);
+    labSay('RESULT viewer → '+r.name+(cs.value?' (compare against '+MDL.lab.raw+' in ORIGINAL)':''));
+  }catch(e){ labSay(e.message,true); }
+};}
 {const b=$('labBack'); if(b) b.onclick=()=>setMode('models');}
 
 /* GLB header parse — enough to verify the export and estimate VRAM */
