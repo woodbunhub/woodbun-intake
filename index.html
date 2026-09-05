@@ -305,6 +305,11 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .mdl-v .ms{font:600 10px var(--mono);color:var(--muted)}
 .mdl-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .mdl-actions select.small{font:600 12px var(--sans);padding:6px 8px;min-width:0}
+.mdl-path{font:11px var(--mono);color:var(--muted);word-break:break-all;flex:1;min-width:200px;user-select:all}
+.mdl-raws{display:flex;flex-direction:column;gap:6px}
+.rawrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.rawrow .sp{flex:1}
+.rawrow .mono{font:600 11px var(--mono);flex:1 1 100%;color:var(--muted);overflow-wrap:anywhere}
 .dropz{flex:1;min-width:150px;border:2px dashed var(--border);border-radius:8px;padding:8px 10px;font:600 11px var(--mono);color:var(--muted);text-align:center;cursor:pointer}
 .dropz.hot{border-color:var(--teal);background:var(--ok-bg);color:var(--teal)}
 #labHost{min-height:200px} #labFrame{width:100%;height:calc(100vh - 200px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:#fff}
@@ -458,11 +463,11 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <button class="small" id="mdlRefresh" style="float:right;font-weight:400">↻ Refresh</button></h2>
     <div class="pfilter">
       <select id="mdlCls"><option value="">All classes</option></select>
-      <select id="mdlSt"><option value="">Any stage</option><option value="none">Nothing yet</option><option value="views">Views exported</option><option value="raw">Raw GLB in</option><option value="released">Released</option></select>
+      <select id="mdlSt"><option value="">Any stage</option><option value="none">Nothing yet</option><option value="raw">Raw GLB in</option><option value="released">Released</option></select>
       <div class="pfsearch"><input id="mdlQ" placeholder="Search product…" autocomplete="off"></div>
       <span class="mcount" id="mdlCount"></span>
     </div>
-    <div class="hint" style="margin:6px 0 10px">Thumbnails are the web copies; <b>Copy</b>, drag-to-desktop and <b>Export Tripo set</b> all use the master files. Drag a thumbnail onto your desktop or into Explorer to get the master as a file (Chrome/Edge).</div>
+    <div class="hint" style="margin:6px 0 10px"><b>Copy master folder path</b> → Win+E, Ctrl+L, paste, Enter → drag the images into Tripo from Explorer. Thumbnails are web copies; <b>Copy</b> and drag-to-desktop hand you the master file (Chrome/Edge). Drop each Tripo try (up to 4) and open the one you like in the Lab.</div>
     <div class="mdl-grid" id="mdlGrid"><div class="qempty">Choose the “Woodbun Assets” root and 01_MASTERS first.</div></div>
   </div>
 </div>
@@ -471,6 +476,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <div class="row" style="align-items:center">
       <button class="small" id="labBack">‹ Models</button>
       <div class="f"><label>Product</label><div class="code" id="labProd">— open a product from Models —</div></div>
+      <div class="f"><label>Raw try (Tripo output)</label><select id="labRaw" style="min-width:160px"></select></div>
       <div class="f"><label>Fabric / finish for this release</label><select id="labFab" style="min-width:160px"></select></div>
       <div style="flex:1"></div>
       <span class="hint" id="labVer"></span>
@@ -677,7 +683,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.0';
+const APP_VERSION='v16.1';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3094,8 +3100,7 @@ async function sendForReview(){
    Models : one card per product that has approved masters. Thumbnails come from 02_WEB
             (small); every export copies MASTER bytes from 01_MASTERS. Writes go to
             Woodbun Assets/03_MODELS/<class>/<pid>/ :
-              _views/<pid>__front|left|right|back.jpg   (the Tripo multi-view set)
-              <pid>__raw.glb / <pid>__raw.usdz            (dropped, unoptimised)
+              <pid>__raw-1.glb … <pid>__raw-4.glb          (Tripo tries, dropped unoptimised; legacy <pid>__raw.glb = raw-1)
               <pid>__<fabric>__vN.glb + .manifest.json + .refine.json + .usdz  (from the Lab)
             Dims come from 01_MASTERS/<class>/<pid>/<pid>__SHOOT.json. A release cannot be
             saved until that file carries dims_status:"VERIFIED" — the manual dimension
@@ -3105,9 +3110,15 @@ async function sendForReview(){
             wb:loaded · wb:export · wb:usdz · wb:error (→intake).
    =================================================================================== */
 const MODELS_DIR='03_MODELS', TOOLS_DIR='_tools', LAB_FILE='lab.html';
-const VIEW_SLOTS=[['02','front'],['06','left'],['04','right'],['05','back']];   // Tripo order
+const VIEW_SLOTS=[['02','front'],['06','left'],['04','right'],['05','back']];   // Tripo order (thumbnails only)
+const RAW_MAX=4;   // Tripo: one generation + three free retries
+const LOCAL_ROOT_KEY='wb_local_assets_path', LOCAL_ROOT_DEFAULT='C:\\Users\\admin\\My Drive\\Woodbun Assets';
 const REF_SLOTS=['01','02','03','04','06'];
-const MDL={items:null,byPid:null,filter:{cls:'',q:'',st:''},lab:{frame:null,ready:false,pid:null,cls:null,fab:null,url:null}};
+const MDL={items:null,byPid:null,filter:{cls:'',q:'',st:''},lab:{frame:null,ready:false,pid:null,cls:null,fab:null,raw:null,url:null}};
+/* A web page cannot open Explorer. What it can do is hand you the exact path: the
+   absolute root is typed once (stored in this browser), the rest is composed. */
+function localRoot(){ try{ return localStorage.getItem(LOCAL_ROOT_KEY)||LOCAL_ROOT_DEFAULT; }catch(e){ return LOCAL_ROOT_DEFAULT; } }
+function masterPath(cls,pid,fab){ return localRoot().replace(/[\\\/]+$/,'')+'\\01_MASTERS\\'+cls+'\\'+pid+'\\'+fab; }
 
 async function modelsRoot(create){
   if(!S.assets) throw new Error('the Assets root is not set — choose “Woodbun Assets” in the folder row');
@@ -3132,19 +3143,22 @@ async function masterFile(cls,pid,fab,slot){
 }
 /* what exists in 03_MODELS for one product */
 async function scanModel(cls,pid){
-  const out={views:0,raw:null,rawUsdz:null,releases:[],refines:{},dir:null};
+  const out={views:0,raw:null,raws:[],rawUsdz:null,releases:[],refines:{},dir:null};
   let d; try{ d=await modelDir(cls,pid,false); }catch(e){ return out; }
   out.dir=d;
   try{ const v=await d.getDirectoryHandle('_views'); out.views=(await listFiles(v)).filter(f=>/\.jpe?g$/i.test(f.name)).length; }catch(e){}
   for(const f of await listFiles(d)){
     const n=f.name;
-    if(n===pid+'__raw.glb'){ out.raw=f; continue; }
-    if(n===pid+'__raw.usdz'){ out.rawUsdz=f; continue; }
+    { const rm=new RegExp('^'+pid+'__raw(?:-(\\d+))?\\.(glb|usdz)$').exec(n);
+      if(rm){ out.raws.push({n:rm[1]?parseInt(rm[1],10):1,ext:rm[2],name:n,handle:f.handle}); continue; } }
     let m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.glb$').exec(n);
     if(m){ out.releases.push({fab:m[1],v:parseInt(m[2],10),name:n,handle:f.handle}); continue; }
     m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.refine\\.json$').exec(n);
     if(m){ (out.refines[m[1]]=out.refines[m[1]]||[]).push({v:parseInt(m[2],10),handle:f.handle}); }
   }
+  out.raws.sort((a,b)=>a.ext.localeCompare(b.ext)||a.n-b.n);
+  for(const r of out.raws){ try{ r.size=(await r.handle.getFile()).size; }catch(e){ r.size=0; } }
+  out.raw=out.raws.find(r=>r.ext==='glb')||null; out.rawUsdz=out.raws.find(r=>r.ext==='usdz')||null;
   const names=new Set((await listFiles(d)).map(f=>f.name));
   for(const r of out.releases){ r.usdz=names.has(r.name.replace(/\.glb$/,'.usdz')); r.manifest=names.has(r.name.replace(/\.glb$/,'.manifest.json')); }
   out.releases.sort((a,b)=>a.fab.localeCompare(b.fab)||b.v-a.v);
@@ -3166,13 +3180,12 @@ function mdlStatus(it){
   const sh=it.shoot, sc=it.scan;
   const chips=[];
   chips.push(dimsOk(sh)? (sh.dims_status==='VERIFIED'? ['ok','dims VERIFIED'] : ['warn','dims not verified']) : ['bad','no dims']);
-  chips.push(sc.views>=4? ['ok','views '+sc.views] : ['','no views']);
-  chips.push(sc.raw? ['ok','raw glb'] : ['','no raw']);
+  const ng=sc.raws.filter(r=>r.ext==='glb').length; chips.push(ng? ['ok',ng+' raw '+(ng>1?'tries':'try')] : ['','no raw']);
   const rel=sc.releases.length; chips.push(rel? ['ok',rel+' release'+(rel>1?'s':'')] : ['','no release']);
   chips.push(sc.releases.some(r=>r.usdz)? ['ok','usdz'] : ['','no usdz']);
   return chips;
 }
-function mdlStage(it){ const sc=it.scan; if(sc.releases.length) return 'released'; if(sc.raw) return 'raw'; if(sc.views>=4) return 'views'; return 'none'; }
+function mdlStage(it){ const sc=it.scan; if(sc.releases.length) return 'released'; if(sc.raw) return 'raw'; return 'none'; }
 
 async function buildModels(){
   const G=$('mdlGrid'); if(!G) return;
@@ -3211,9 +3224,12 @@ async function mdlCard(it){
     '<div class="mdl-views" data-fab="'+esc(fab)+'"></div>'+
     '<div class="mdl-actions">'+
       (it.fabs.length>1?'<select class="small" data-a="fab">'+it.fabs.map(x=>'<option'+(x===fab?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>':'')+
-      '<button class="small" data-a="views" title="Copies the four white-background MASTER images (front, left, right, back) into 03_MODELS/…/_views/ renamed for Tripo. Drag them from Explorer into Tripo.">Export Tripo set</button>'+
-      '<button class="act" data-a="lab" '+(it.scan.raw?'':'disabled title="drop the raw GLB first"')+'>Open in 3D Lab</button>'+
-      '<label class="dropz" data-a="drop">drop raw .glb / .usdz here<input type="file" accept=".glb,.usdz" multiple style="display:none"></label>'+
+      '<button class="small" data-a="path" title="Copies the master folder path. Then: Win+E, Ctrl+L, paste, Enter — and drag the images into Tripo from Explorer.">Copy master folder path</button>'+
+      '<span class="mdl-path" data-a="pathtxt"></span>'+
+    '</div>'+
+    '<div class="mdl-raws" data-a="raws"></div>'+
+    '<div class="mdl-actions">'+
+      '<label class="dropz" data-a="drop">drop Tripo .glb here — try '+(it.scan.raws.filter(r=>r.ext==='glb').length+1)+' of '+RAW_MAX+'<input type="file" accept=".glb,.usdz" multiple style="display:none"></label>'+
     '</div>'+
     '<div class="hint mdl-msg"></div>';
   const msg=card.querySelector('.mdl-msg');
@@ -3246,12 +3262,36 @@ async function mdlCard(it){
     }
   };
   renderViews(fab);
-  const fabSel=card.querySelector('[data-a=fab]'); if(fabSel) fabSel.onchange=()=>renderViews(fabSel.value);
+  const fabSel=card.querySelector('[data-a=fab]'); if(fabSel) fabSel.onchange=()=>{ renderViews(fabSel.value); showPath(); };
   const curFab=()=>fabSel?fabSel.value:fab;
-  card.querySelector('[data-a=views]').onclick=async()=>{
-    try{ const r=await exportTripoSet(it,curFab()); say('Exported '+r.n+' view(s) to 03_MODELS/'+it.cls+'/'+it.pid+'/_views/'+(r.missing.length?' — missing master: '+r.missing.join(', '):''),r.missing.length>0); await refreshCard(it,card); }
-    catch(e){ say('Export failed: '+e.message,true); }
+  const pathTxt=card.querySelector('[data-a=pathtxt]');
+  const showPath=()=>{ pathTxt.textContent=masterPath(it.cls,it.pid,curFab()); };
+  showPath();
+  card.querySelector('[data-a=path]').onclick=async e=>{
+    if(e.shiftKey){ const v=prompt('Local path of the “Woodbun Assets” folder on this PC:',localRoot()); if(v&&v.trim()){ try{ localStorage.setItem(LOCAL_ROOT_KEY,v.trim()); }catch(_){} showPath(); } return; }
+    try{ await navigator.clipboard.writeText(masterPath(it.cls,it.pid,curFab())); say('Path copied. In Explorer: Win+E → Ctrl+L → Ctrl+V → Enter. (Shift-click this button to change the root path.)'); }
+    catch(err){ say('Could not copy — select the path text and copy it by hand.',true); }
   };
+  const rawsBox=card.querySelector('[data-a=raws]');
+  const renderRaws=()=>{
+    const glbs=it.scan.raws.filter(r=>r.ext==='glb'), usdzs=it.scan.raws.filter(r=>r.ext==='usdz');
+    if(!glbs.length&&!usdzs.length){ rawsBox.innerHTML='<div class="hint">No Tripo output yet. Drop each try below — up to '+RAW_MAX+' — then open the one you want in the Lab.</div>'; return; }
+    rawsBox.innerHTML=[...glbs,...usdzs].map(r=>'<div class="rawrow" data-n="'+esc(r.name)+'"><span class="chip '+(r.ext==='glb'?'ok':'')+'">'+r.ext+' try '+r.n+'</span>'+
+      '<span class="hint">'+(r.size/1e6).toFixed(1)+' MB</span><span class="sp"></span>'+
+      (r.ext==='glb'?'<button class="small" data-a="open" style="color:var(--teal);border-color:var(--teal)">Open in 3D Lab ›</button>':'')+
+      '<button class="small" data-a="rm" title="Removes this file from 03_MODELS">✕</button>'+
+      '<span class="mono">'+esc(r.name)+'</span></div>').join('');
+    rawsBox.querySelectorAll('.rawrow').forEach(row=>{
+      const r=it.scan.raws.find(x=>x.name===row.dataset.n);
+      const ob=row.querySelector('[data-a=open]'); if(ob) ob.onclick=()=>openInLab(it,curFab(),r.name);
+      row.querySelector('[data-a=rm]').onclick=async()=>{
+        if(!confirm('Remove '+r.name+' from 03_MODELS? (Releases built from it are kept.)')) return;
+        try{ const d=await modelDir(it.cls,it.pid,false); await d.removeEntry(r.name); logEvent('model.raw_removed',{product:it.pid,file:r.name}); say('Removed '+r.name); await refreshCard(it,card); }
+        catch(e){ say('Could not remove: '+e.message,true); }
+      };
+    });
+  };
+  renderRaws();
   const vb=card.querySelector('[data-a=verify]');
   if(vb) vb.onclick=async()=>{
     try{
@@ -3265,7 +3305,6 @@ async function mdlCard(it){
       await refreshCard(it,card);
     }catch(e){ say('Could not update SHOOT.json: '+e.message,true); }
   };
-  card.querySelector('[data-a=lab]').onclick=()=>openInLab(it,curFab());
   // raw drop
   const dz=card.querySelector('[data-a=drop]');
   const takeRaw=async files=>{
@@ -3274,18 +3313,19 @@ async function mdlCard(it){
       const ext=(f.name.split('.').pop()||'').toLowerCase();
       if(!['glb','usdz'].includes(ext)){ say(f.name+' ignored — only .glb / .usdz',true); continue; }
       if(ext==='glb'){ try{ const dv=new DataView(await f.slice(0,4).arrayBuffer()); if(dv.getUint32(0,true)!==0x46546C67) throw 0; }catch(e){ say(f.name+' is not a GLB (bad magic)',true); continue; } }
-      const target=it.pid+'__raw.'+ext;
+      const same=it.scan.raws.filter(r=>r.ext===ext);
+      if(same.length>=RAW_MAX){ say('Already '+RAW_MAX+' raw .'+ext+' tries for '+it.pid+' — remove one (✕) before adding another.',true); continue; }
+      const nextN=same.length? Math.max(...same.map(r=>r.n))+1 : 1;
+      const target=it.pid+'__raw-'+nextN+'.'+ext;
       const d=await modelDir(it.cls,it.pid,true);
-      let exists=false; try{ await d.getFileHandle(target); exists=true; }catch(e){}
-      if(exists && !confirm('Replace the existing '+target+'?')) continue;
       busyOn('Saving '+target); busyStep(0,1,f.name);
       try{ const h=await d.getFileHandle(target,{create:true}); const w=await h.createWritable(); await w.write(f); await w.close();
         const back=await (await d.getFileHandle(target)).getFile(); if(back.size!==f.size) throw new Error('landed at the wrong size');
-        n++; logEvent('model.raw_saved',{product:it.pid,file:target,bytes:f.size,from:f.name});
+        n++; it.scan=await scanModel(it.cls,it.pid); logEvent('model.raw_saved',{product:it.pid,file:target,bytes:f.size,from:f.name,try:nextN});
       }catch(e){ say('Could not save '+target+': '+e.message,true); }
       finally{ busyOff(); }
     }
-    if(n){ say(n+' raw file(s) saved as '+it.pid+'__raw.*'); await refreshCard(it,card); }
+    if(n){ say(n+' raw file(s) saved — pick the try you want and open it in the Lab.'); await refreshCard(it,card); }
   };
   dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('hot');});
   dz.addEventListener('dragleave',()=>dz.classList.remove('hot'));
@@ -3307,28 +3347,6 @@ async function copyMasterToClipboard(mf){
   cv.getContext('2d').drawImage(bmp,0,0); if(bmp.close) bmp.close();
   const png=await new Promise(r=>cv.toBlob(r,'image/png'));     // the clipboard accepts PNG only
   await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
-}
-async function exportTripoSet(it,fab){
-  if(!S.masters) throw new Error('01_MASTERS not set');
-  const dst=await dirFor(await modelDir(it.cls,it.pid,true),['_views'],true);
-  let n=0; const missing=[];
-  busyOn('Exporting Tripo views — '+it.pid);
-  try{
-    let i=0;
-    for(const [slot,label] of VIEW_SLOTS){
-      const mf=await masterFile(it.cls,it.pid,fab,slot);
-      busyStep(i++,VIEW_SLOTS.length,label);
-      if(!mf){ missing.push(label); continue; }
-      const file=await mf.handle.getFile();
-      const out=it.pid+'__'+label+'.jpg';
-      const h=await dst.getFileHandle(out,{create:true}); const w=await h.createWritable(); await w.write(file); await w.close();
-      const back=await (await dst.getFileHandle(out)).getFile(); if(back.size!==file.size) throw new Error(out+' landed at the wrong size');
-      n++;
-    }
-    await writeJSON(dst,'_views.json',{pid:it.pid,fabric_code:fab,slots:Object.fromEntries(VIEW_SLOTS),source:'01_MASTERS',exported:new Date().toISOString(),by:WHO||ROLE,missing});
-    logEvent('model.views_exported',{product:it.pid,variant:fab,n,missing});
-  } finally { busyOff(); }
-  return {n,missing};
 }
 ['mdlCls','mdlQ','mdlSt'].forEach(id=>{ const el=$(id); if(!el) return;
   el.addEventListener(id==='mdlQ'?'input':'change',()=>{ MDL.filter={cls:$('mdlCls').value,q:$('mdlQ').value.trim(),st:$('mdlSt').value}; buildModels(); }); });
@@ -3369,7 +3387,7 @@ window.addEventListener('message',async e=>{
   if(m.type==='wb:usdz'){ try{ await saveUsdz(m); }catch(err){ labSay('USDZ NOT saved — '+err.message,true); wbFail('Save USDZ',err); } return; }
 });
 function labSay(t,bad){ const s=$('labStatus'); if(!s) return; s.textContent=t; s.className='status '+(bad?'err':'ok'); }
-async function openInLab(it,fab){
+async function openInLab(it,fab,rawName){
   setMode('lab');
   MDL.lab.pid=it.pid; MDL.lab.cls=it.cls; MDL.lab.fab=fab;
   $('labProd').textContent=it.cls+' · '+it.pid;
@@ -3378,20 +3396,25 @@ async function openInLab(it,fab){
   try{
     await ensureLab();
     const sc=await scanModel(it.cls,it.pid);
-    if(!sc.raw) throw new Error('no '+it.pid+'__raw.glb in 03_MODELS — drop it on the product card first');
-    const rawFile=await sc.raw.handle.getFile();
+    const glbs=sc.raws.filter(r=>r.ext==='glb');
+    if(!glbs.length) throw new Error('no raw GLB for '+it.pid+' in 03_MODELS — drop a Tripo .glb on the product card first');
+    const raw=glbs.find(r=>r.name===rawName)||glbs.find(r=>r.name===MDL.lab.raw)||glbs[0];
+    MDL.lab.raw=raw.name;
+    const rs=$('labRaw'); rs.innerHTML=glbs.map(r=>'<option value="'+esc(r.name)+'"'+(r.name===raw.name?' selected':'')+'>try '+r.n+' · '+(r.size/1e6).toFixed(1)+' MB</option>').join('');
+    const rawFile=await raw.handle.getFile();
     const glb=await rawFile.arrayBuffer();
     const sh=await readShoot(it.cls,it.pid);
     const refs=[]; for(const slot of REF_SLOTS){ const wf=await webFile(it.cls,it.pid,fab,slot); if(wf){ const f=await wf.handle.getFile(); refs.push({name:f.name,type:f.type||'image/jpeg',buf:await f.arrayBuffer()}); } }
     let settings=null; const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0];
     if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} }
-    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:it.pid+'__raw.glb',glb,
+    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,
       dims:dimsOk(sh)?{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h}:null,dims_status:sh&&sh.dims_status,settings,refs};
     MDL.lab.frame.contentWindow.postMessage(msg,'*',[glb,...refs.map(r=>r.buf)]);
-    labSay('Sent '+it.pid+'__raw.glb ('+(rawFile.size/1e6).toFixed(1)+' MB) and '+refs.length+' reference photo(s) to the lab.');
+    labSay('Sent '+raw.name+' ('+(rawFile.size/1e6).toFixed(1)+' MB) and '+refs.length+' reference photo(s) to the lab.');
   }catch(e){ labSay(e.message,true); }
 }
-{const fs=$('labFab'); if(fs) fs.onchange=()=>{ MDL.lab.fab=fs.value; if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],fs.value); };}
+{const fs=$('labFab'); if(fs) fs.onchange=()=>{ MDL.lab.fab=fs.value; if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],fs.value,MDL.lab.raw); };}
+{const rs=$('labRaw'); if(rs) rs.onchange=()=>{ if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],MDL.lab.fab,rs.value); };}
 {const b=$('labBack'); if(b) b.onclick=()=>setMode('models');}
 
 /* GLB header parse — enough to verify the export and estimate VRAM */
@@ -3430,7 +3453,8 @@ async function saveRelease(m){
   const base=pid+'__'+fab+'__'+tag;
   const d=await modelDir(cls,pid,true);
   const sha=await sha256Buf(m.glb);
-  let srcSha=null; try{ if(sc.raw) srcSha=await sha256Buf(await (await sc.raw.handle.getFile()).arrayBuffer()); }catch(e){}
+  const srcRaw=sc.raws.find(r=>r.name===MDL.lab.raw)||sc.raw;
+  let srcSha=null; try{ if(srcRaw) srcSha=await sha256Buf(await (await srcRaw.handle.getFile()).arrayBuffer()); }catch(e){}
   const texPx=(m.stats&&m.stats.texture_px)||(m.settings&&m.settings.texture_px)||0;
   const manifest={pid,fabric_code:fab,model_version:tag,filename:base+'.glb',
     dims_m:{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h},dims_status:sh.dims_status,dims_verified_at:sh.dims_verified_at||null,
@@ -3439,7 +3463,7 @@ async function saveRelease(m){
     texture_px:texPx,texture_format:m.stats&&m.stats.texture_format,draco:!!info.draco,
     draco_encode_speed:m.settings&&m.settings.draco_encode_speed,draco_position_bits:m.settings&&m.settings.draco_position_bits,
     colour_baked:m.settings&&m.settings.colour,scale_mode:m.settings&&m.settings.scale_mode,
-    sha256:sha,source:sc.raw?sc.raw.name:null,source_sha256:srcSha,
+    sha256:sha,source:srcRaw?srcRaw.name:null,source_try:srcRaw?srcRaw.n:null,source_sha256:srcSha,
     built:new Date().toISOString(),built_by:WHO||ROLE,lab_version:m.settings&&m.settings.lab_version,intake_version:APP_VERSION,usdz:null};
   busyOn('Saving release '+base); busyStep(0,3,base+'.glb');
   try{
