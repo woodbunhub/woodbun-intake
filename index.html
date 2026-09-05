@@ -290,6 +290,24 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 #phDims .pend{color:var(--terracotta);font-weight:600}
 .status.warn{background:#fef3c7;border-color:#d9a72a;color:#7a4d00}
 .dupwarn{background:#fef3c7;border:1px solid #d9a72a;color:#7a4d00;border-radius:8px;padding:10px 12px;margin-bottom:10px;font:600 12.5px var(--sans);line-height:1.5}
+.mdl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+.mdl-card{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px;display:flex;flex-direction:column;gap:10px}
+.mdl-head{display:flex;gap:12px;align-items:flex-start}
+.mdl-hero{width:96px;height:96px;object-fit:cover;border-radius:8px;border:1px solid var(--border);background:var(--panel);cursor:zoom-in}
+.mdl-card .pi-id{font:650 14px var(--mono)} .mdl-card .pi-meta{font-size:12px;color:var(--muted)}
+.mdl-card .badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip{font:600 10px var(--mono);padding:2px 7px;border-radius:99px;background:var(--panel);color:var(--muted);border:1px solid var(--border)}
+.chip.ok{background:var(--ok-bg);color:var(--teal);border-color:transparent} .chip.warn{background:#FDF2EA;color:var(--terracotta);border-color:transparent} .chip.bad{background:var(--terracotta);color:#fff;border-color:transparent}
+.mdl-views{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.mdl-v{display:flex;flex-direction:column;gap:4px;align-items:stretch}
+.mdl-v img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:6px;border:1px solid var(--border);background:#fff;cursor:grab}
+.mdl-v .noref{width:100%;aspect-ratio:1/1;border-radius:6px;background:var(--panel);border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;font:600 9px var(--mono);color:var(--muted);text-align:center}
+.mdl-v .ms{font:600 10px var(--mono);color:var(--muted)}
+.mdl-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.mdl-actions select.small{font:600 12px var(--sans);padding:6px 8px;min-width:0}
+.dropz{flex:1;min-width:150px;border:2px dashed var(--border);border-radius:8px;padding:8px 10px;font:600 11px var(--mono);color:var(--muted);text-align:center;cursor:pointer}
+.dropz.hot{border-color:var(--teal);background:var(--ok-bg);color:var(--teal)}
+#labHost{min-height:200px} #labFrame{width:100%;height:calc(100vh - 200px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:#fff}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .mcell{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column}
 .mcell img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;cursor:zoom-in;background:#fff}
@@ -355,6 +373,8 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <button id="mUp" class="hide">Uploads</button>
     <button id="mDims" class="hide">Dims<span class="pill" id="dimPill" style="display:none">0</span></button>
     <button id="mLog" class="hide">Activity</button>
+    <button id="mModels" class="hide">Models</button>
+    <button id="mLab" class="hide">3D Lab</button>
     <button id="mOut" class="hide" title="Log out">Log out</button>
   </div>
 </header>
@@ -431,6 +451,33 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <div class="f" style="align-self:flex-end"><span class="mcount" id="mCount"></span></div>
   </div>
   <div class="mgrid" id="mgrid"><div class="qempty">Choose the 01_MASTERS folder first.</div></div></div>
+</div>
+<div id="modelsArea" style="display:none">
+  <div class="card">
+    <h2>Models <span class="hint" style="font-weight:400">— masters → Tripo views → raw GLB → 3D Lab → release GLB + USDZ, all under Woodbun Assets/03_MODELS</span>
+      <button class="small" id="mdlRefresh" style="float:right;font-weight:400">↻ Refresh</button></h2>
+    <div class="pfilter">
+      <select id="mdlCls"><option value="">All classes</option></select>
+      <select id="mdlSt"><option value="">Any stage</option><option value="none">Nothing yet</option><option value="views">Views exported</option><option value="raw">Raw GLB in</option><option value="released">Released</option></select>
+      <div class="pfsearch"><input id="mdlQ" placeholder="Search product…" autocomplete="off"></div>
+      <span class="mcount" id="mdlCount"></span>
+    </div>
+    <div class="hint" style="margin:6px 0 10px">Thumbnails are the web copies; <b>Copy</b>, drag-to-desktop and <b>Export Tripo set</b> all use the master files. Drag a thumbnail onto your desktop or into Explorer to get the master as a file (Chrome/Edge).</div>
+    <div class="mdl-grid" id="mdlGrid"><div class="qempty">Choose the “Woodbun Assets” root and 01_MASTERS first.</div></div>
+  </div>
+</div>
+<div id="labArea" style="display:none">
+  <div class="card" style="padding:10px 14px">
+    <div class="row" style="align-items:center">
+      <button class="small" id="labBack">‹ Models</button>
+      <div class="f"><label>Product</label><div class="code" id="labProd">— open a product from Models —</div></div>
+      <div class="f"><label>Fabric / finish for this release</label><select id="labFab" style="min-width:160px"></select></div>
+      <div style="flex:1"></div>
+      <span class="hint" id="labVer"></span>
+    </div>
+    <div class="status" id="labStatus" style="margin-top:8px">The lab runs from Woodbun Assets/_tools/lab.html on this PC. Compress → Save release → Make USDZ.</div>
+  </div>
+  <div id="labHost"></div>
 </div>
 <div id="logArea" style="display:none">
   <div class="card">
@@ -630,7 +677,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v15.18';
+const APP_VERSION='v16.0';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -668,6 +715,7 @@ function applyRole(r,who){
   $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
   $('mDims').classList.toggle('hide', !ADMIN);
   {const b=$('mLog'); if(b) b.classList.toggle('hide', !ADMIN);}
+  ['mModels','mLab'].forEach(id=>{const b=$(id); if(b) b.classList.toggle('hide', !ADMIN);});   // v16.0: admin only
   document.querySelectorAll('.adminonly2').forEach(e=>e.style.display=ADMIN?'flex':'none');
   document.querySelectorAll('.staffonly,.staffonly2').forEach(e=>e.style.display=(ADMIN||STAFF)?'flex':'none');
   $('mOut').classList.remove('hide');
@@ -1274,7 +1322,7 @@ async function chooseMasters(){
   try{
     const h=await window.showDirectoryPicker({mode:'readwrite'});
     setMasters(h); await hSet('masters',h);
-    if(S.mode==='masters')buildMasters();
+    if(S.mode==='masters')buildMasters(); if(S.mode==='models')buildModels();
   }catch(e){}
 }
 ['mSelCls','mSelPid','mSelFab'].forEach(id=>{ const el=$(id); if(el) el.onchange=()=>{ if(id==='mSelCls') $('mSelPid').value=''; buildMasters(); }; });
@@ -1316,7 +1364,7 @@ async function offerReconnect(){
       const reconnM=async()=>{
         if(await ensurePerm(mh)){ setMasters(mh);
           ['mastPath','mastPath2'].forEach(id=>{$(id).style.cursor='';$(id).onclick=null;});
-          if(S.mode==='masters')buildMasters(); if(S.mode==='dims')buildDims(); }
+          if(S.mode==='masters')buildMasters(); if(S.mode==='dims')buildDims(); if(S.mode==='models')buildModels(); }
         else { ['mastPath','mastPath2'].forEach(id=>$(id).textContent='Reconnect denied — use Choose folder.'); }
       };
       offerOn(['mastPath','mastPath2'], mh.name, reconnM);
@@ -3040,11 +3088,399 @@ async function sendForReview(){
 }
 
 /* ---------- modes ---------- */
+/* ===================================================================================
+   v16.0 — MODELS + 3D LAB (admin only)
+   -----------------------------------------------------------------------------------
+   Models : one card per product that has approved masters. Thumbnails come from 02_WEB
+            (small); every export copies MASTER bytes from 01_MASTERS. Writes go to
+            Woodbun Assets/03_MODELS/<class>/<pid>/ :
+              _views/<pid>__front|left|right|back.jpg   (the Tripo multi-view set)
+              <pid>__raw.glb / <pid>__raw.usdz            (dropped, unoptimised)
+              <pid>__<fabric>__vN.glb + .manifest.json + .refine.json + .usdz  (from the Lab)
+            Dims come from 01_MASTERS/<class>/<pid>/<pid>__SHOOT.json. A release cannot be
+            saved until that file carries dims_status:"VERIFIED" — the manual dimension
+            check is a hard stop here, not a habit.
+   3D Lab : Woodbun Assets/_tools/lab.html is read from disk and shown in a same-origin
+            blob iframe. It never leaves the PC. Messages: wb:ready · wb:load (→lab) ·
+            wb:loaded · wb:export · wb:usdz · wb:error (→intake).
+   =================================================================================== */
+const MODELS_DIR='03_MODELS', TOOLS_DIR='_tools', LAB_FILE='lab.html';
+const VIEW_SLOTS=[['02','front'],['06','left'],['04','right'],['05','back']];   // Tripo order
+const REF_SLOTS=['01','02','03','04','06'];
+const MDL={items:null,byPid:null,filter:{cls:'',q:'',st:''},lab:{frame:null,ready:false,pid:null,cls:null,fab:null,url:null}};
+
+async function modelsRoot(create){
+  if(!S.assets) throw new Error('the Assets root is not set — choose “Woodbun Assets” in the folder row');
+  return await dirFor(S.assets,[MODELS_DIR],!!create);
+}
+async function modelDir(cls,pid,create){ return await dirFor(await modelsRoot(create),[cls,pid],!!create); }
+async function readShoot(cls,pid){
+  try{ const d=await dirFor(S.masters,[cls,pid]); const h=await d.getFileHandle(pid+'__SHOOT.json');
+    return JSON.parse(await (await h.getFile()).text()); }catch(e){ return null; }
+}
+async function writeShoot(cls,pid,obj){ const d=await dirFor(S.masters,[cls,pid],true); await writeJSON(d,pid+'__SHOOT.json',obj); }
+function dimsOk(sh){ const d=sh&&sh.dims_m; return !!(d&&d.w>0&&d.d>0&&d.h>0); }
+async function webFile(cls,pid,fab,slot){
+  try{ const d=await dirFor(S.assets,['02_WEB',cls,pid,fab]);
+    for(const f of await listFiles(d)){ if(new RegExp('__'+slot+'__[a-z-]+\\.jpe?g$','i').test(f.name)) return f; } }catch(e){}
+  return null;
+}
+async function masterFile(cls,pid,fab,slot){
+  try{ const d=await dirFor(S.masters,[cls,pid,fab]);
+    for(const f of await listFiles(d)){ if(new RegExp('__'+slot+'__[a-z-]+\\.(jpe?g|png|webp)$','i').test(f.name)) return f; } }catch(e){}
+  return null;
+}
+/* what exists in 03_MODELS for one product */
+async function scanModel(cls,pid){
+  const out={views:0,raw:null,rawUsdz:null,releases:[],refines:{},dir:null};
+  let d; try{ d=await modelDir(cls,pid,false); }catch(e){ return out; }
+  out.dir=d;
+  try{ const v=await d.getDirectoryHandle('_views'); out.views=(await listFiles(v)).filter(f=>/\.jpe?g$/i.test(f.name)).length; }catch(e){}
+  for(const f of await listFiles(d)){
+    const n=f.name;
+    if(n===pid+'__raw.glb'){ out.raw=f; continue; }
+    if(n===pid+'__raw.usdz'){ out.rawUsdz=f; continue; }
+    let m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.glb$').exec(n);
+    if(m){ out.releases.push({fab:m[1],v:parseInt(m[2],10),name:n,handle:f.handle}); continue; }
+    m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.refine\\.json$').exec(n);
+    if(m){ (out.refines[m[1]]=out.refines[m[1]]||[]).push({v:parseInt(m[2],10),handle:f.handle}); }
+  }
+  const names=new Set((await listFiles(d)).map(f=>f.name));
+  for(const r of out.releases){ r.usdz=names.has(r.name.replace(/\.glb$/,'.usdz')); r.manifest=names.has(r.name.replace(/\.glb$/,'.manifest.json')); }
+  out.releases.sort((a,b)=>a.fab.localeCompare(b.fab)||b.v-a.v);
+  return out;
+}
+function latestRelease(scan,fab){ return scan.releases.filter(r=>r.fab===fab).sort((a,b)=>b.v-a.v)[0]||null; }
+function nextVersion(scan,fab){ const l=latestRelease(scan,fab); return l? l.v+1 : 1; }
+
+async function modelsIndex(force){
+  if(MDL.items&&!force) return MDL.items;
+  const masters=await walkMasters();                 // [{cls,pid,fab,handle}]
+  const by={};
+  for(const m of masters){ const k=m.pid; (by[k]=by[k]||{cls:m.cls,pid:m.pid,fabs:[]}).fabs.push(m.fab); }
+  const items=Object.values(by).sort((a,b)=>a.cls.localeCompare(b.cls)||a.pid.localeCompare(b.pid));
+  for(const it of items){ it.fabs.sort(); it.shoot=await readShoot(it.cls,it.pid); it.scan=await scanModel(it.cls,it.pid); }
+  MDL.items=items; MDL.byPid=by; return items;
+}
+function mdlStatus(it){
+  const sh=it.shoot, sc=it.scan;
+  const chips=[];
+  chips.push(dimsOk(sh)? (sh.dims_status==='VERIFIED'? ['ok','dims VERIFIED'] : ['warn','dims not verified']) : ['bad','no dims']);
+  chips.push(sc.views>=4? ['ok','views '+sc.views] : ['','no views']);
+  chips.push(sc.raw? ['ok','raw glb'] : ['','no raw']);
+  const rel=sc.releases.length; chips.push(rel? ['ok',rel+' release'+(rel>1?'s':'')] : ['','no release']);
+  chips.push(sc.releases.some(r=>r.usdz)? ['ok','usdz'] : ['','no usdz']);
+  return chips;
+}
+function mdlStage(it){ const sc=it.scan; if(sc.releases.length) return 'released'; if(sc.raw) return 'raw'; if(sc.views>=4) return 'views'; return 'none'; }
+
+async function buildModels(){
+  const G=$('mdlGrid'); if(!G) return;
+  if(!S.assets||!S.masters){ G.innerHTML='<div class="qempty">Choose the “Woodbun Assets” root and the 01_MASTERS folder first (folder row above).</div>'; return; }
+  G.innerHTML='<div class="qempty">Reading masters, web copies and 03_MODELS…</div>';
+  let items; try{ items=await modelsIndex(true); }catch(e){ wbFail('Could not read the model folders',e); return; }
+  const cs=$('mdlCls'); const classes=[...new Set(items.map(i=>i.cls))].sort();
+  if(cs.dataset.n!==String(classes.length)){ cs.innerHTML='<option value="">All classes</option>'+classes.map(c=>'<option>'+esc(c)+'</option>').join(''); cs.dataset.n=String(classes.length); }
+  const f=MDL.filter;
+  const list=items.filter(i=>(!f.cls||i.cls===f.cls)&&(!f.q||i.pid.includes(f.q.toLowerCase()))&&(!f.st||mdlStage(i)===f.st));
+  $('mdlCount').textContent=list.length+' of '+items.length+' product(s)';
+  if(!list.length){ G.innerHTML='<div class="qempty">Nothing matches.</div>'; return; }
+  G.innerHTML='';
+  const frag=document.createDocumentFragment();
+  for(const it of list){ frag.appendChild(await mdlCard(it)); }
+  G.appendChild(frag);
+}
+async function thumbUrl(cls,pid,fab,slot){
+  const f=await webFile(cls,pid,fab,slot) || await masterFile(cls,pid,fab,slot);
+  return f? URL.createObjectURL(await f.handle.getFile()) : null;
+}
+async function mdlCard(it){
+  const fab=it.fabs.includes('default')?'default':it.fabs[0];
+  const card=document.createElement('div'); card.className='mdl-card'; card.dataset.pid=it.pid;
+  const sh=it.shoot, dm=(sh&&sh.dims_m)||{};
+  const dimsTxt=dimsOk(sh)? (dm.w.toFixed(2)+' × '+dm.d.toFixed(2)+' × '+dm.h.toFixed(2)+' m') : 'no approved dims';
+  const chips=mdlStatus(it).map(c=>'<span class="chip '+c[0]+'">'+esc(c[1])+'</span>').join('');
+  const rel=it.scan.releases.map(r=>'<span class="chip ok" title="'+esc(r.name)+'">'+esc(r.fab)+' v'+r.v+(r.usdz?' +usdz':'')+'</span>').join('');
+  card.innerHTML=
+    '<div class="mdl-head"><img class="mdl-hero" alt="" style="display:none"><div class="grow">'+
+      '<div class="pi-id">'+esc(it.pid)+'</div><div class="pi-meta">'+esc(it.cls)+' · '+it.fabs.length+' variant'+(it.fabs.length>1?'s':'')+' · '+esc(it.fabs.join(', '))+'</div>'+
+      '<div class="badges">'+chips+'</div>'+(rel?'<div class="badges" style="margin-top:4px">'+rel+'</div>':'')+
+      '<div class="pi-meta" style="margin-top:6px"><b>Dims</b> '+esc(dimsTxt)+
+        (dimsOk(sh)? ' <button class="small" data-a="verify">'+(sh.dims_status==='VERIFIED'?'Un-verify':'Mark dims verified')+'</button>':'')+
+      '</div></div></div>'+
+    '<div class="mdl-views" data-fab="'+esc(fab)+'"></div>'+
+    '<div class="mdl-actions">'+
+      (it.fabs.length>1?'<select class="small" data-a="fab">'+it.fabs.map(x=>'<option'+(x===fab?' selected':'')+'>'+esc(x)+'</option>').join('')+'</select>':'')+
+      '<button class="small" data-a="views" title="Copies the four white-background MASTER images (front, left, right, back) into 03_MODELS/…/_views/ renamed for Tripo. Drag them from Explorer into Tripo.">Export Tripo set</button>'+
+      '<button class="act" data-a="lab" '+(it.scan.raw?'':'disabled title="drop the raw GLB first"')+'>Open in 3D Lab</button>'+
+      '<label class="dropz" data-a="drop">drop raw .glb / .usdz here<input type="file" accept=".glb,.usdz" multiple style="display:none"></label>'+
+    '</div>'+
+    '<div class="hint mdl-msg"></div>';
+  const msg=card.querySelector('.mdl-msg');
+  const say=(t,bad)=>{ msg.textContent=t; msg.style.color=bad?'var(--terracotta)':'var(--teal)'; };
+  // hero
+  thumbUrl(it.cls,it.pid,fab,'01').then(u=>{ if(u){ const im=card.querySelector('.mdl-hero'); im.src=u; im.style.display='block'; im.onclick=()=>lightbox(u,it.pid+' — lifestyle',''); } });
+  const renderViews=async(fb)=>{
+    const V=card.querySelector('.mdl-views'); V.innerHTML=''; V.dataset.fab=fb;
+    for(const [slot,label] of VIEW_SLOTS){
+      const cell=document.createElement('div'); cell.className='mdl-v';
+      const mf=await masterFile(it.cls,it.pid,fb,slot);
+      const u=await thumbUrl(it.cls,it.pid,fb,slot);
+      cell.innerHTML=(u?'<img src="'+u+'" alt="" draggable="true">':'<div class="noref">no '+label+'</div>')+
+        '<div class="ms">'+slot+' · '+label+(mf?'':' <span style="color:var(--terracotta)">no master</span>')+'</div>'+
+        (mf?'<button class="small" data-a="copy">Copy</button>':'');
+      if(u){ const im=cell.querySelector('img'); im.onclick=()=>lightbox(u,it.pid+' · '+fb+' · '+label,'');
+        if(mf){ // drag to desktop / Explorer (Chrome, Edge): the OS receives the MASTER file
+          im.addEventListener('dragstart',async e=>{
+            const file=await mf.handle.getFile(); const url=URL.createObjectURL(file);
+            e.dataTransfer.setData('DownloadURL',(file.type||'image/jpeg')+':'+it.pid+'__'+label+'.jpg:'+url);
+            e.dataTransfer.effectAllowed='copy';
+          });
+          cell.querySelector('[data-a=copy]').onclick=async ev=>{ ev.stopPropagation();
+            try{ await copyMasterToClipboard(mf); say('Copied the master '+label+' image — paste into Tripo (Ctrl+V).'); }
+            catch(err){ say('Copy failed: '+err.message+' (Chrome/Edge, HTTPS or localhost only)',true); }
+          };
+        }
+      }
+      V.appendChild(cell);
+    }
+  };
+  renderViews(fab);
+  const fabSel=card.querySelector('[data-a=fab]'); if(fabSel) fabSel.onchange=()=>renderViews(fabSel.value);
+  const curFab=()=>fabSel?fabSel.value:fab;
+  card.querySelector('[data-a=views]').onclick=async()=>{
+    try{ const r=await exportTripoSet(it,curFab()); say('Exported '+r.n+' view(s) to 03_MODELS/'+it.cls+'/'+it.pid+'/_views/'+(r.missing.length?' — missing master: '+r.missing.join(', '):''),r.missing.length>0); await refreshCard(it,card); }
+    catch(e){ say('Export failed: '+e.message,true); }
+  };
+  const vb=card.querySelector('[data-a=verify]');
+  if(vb) vb.onclick=async()=>{
+    try{
+      const s=await readShoot(it.cls,it.pid); if(!dimsOk(s)) throw new Error('no dims in SHOOT.json');
+      if(s.dims_status==='VERIFIED'){ delete s.dims_status; delete s.dims_verified_at; delete s.dims_verified_by; }
+      else { s.dims_status='VERIFIED'; s.dims_verified_at=new Date().toISOString(); s.dims_verified_by=WHO||ROLE; }
+      s.updated=new Date().toISOString();
+      await writeShoot(it.cls,it.pid,s);
+      logEvent('model.dims_'+(s.dims_status==='VERIFIED'?'verified':'unverified'),{product:it.pid,dims_m:s.dims_m});
+      say(s.dims_status==='VERIFIED'?'Dims marked VERIFIED against the photographed piece.':'Dims verification removed.');
+      await refreshCard(it,card);
+    }catch(e){ say('Could not update SHOOT.json: '+e.message,true); }
+  };
+  card.querySelector('[data-a=lab]').onclick=()=>openInLab(it,curFab());
+  // raw drop
+  const dz=card.querySelector('[data-a=drop]');
+  const takeRaw=async files=>{
+    let n=0;
+    for(const f of files){
+      const ext=(f.name.split('.').pop()||'').toLowerCase();
+      if(!['glb','usdz'].includes(ext)){ say(f.name+' ignored — only .glb / .usdz',true); continue; }
+      if(ext==='glb'){ try{ const dv=new DataView(await f.slice(0,4).arrayBuffer()); if(dv.getUint32(0,true)!==0x46546C67) throw 0; }catch(e){ say(f.name+' is not a GLB (bad magic)',true); continue; } }
+      const target=it.pid+'__raw.'+ext;
+      const d=await modelDir(it.cls,it.pid,true);
+      let exists=false; try{ await d.getFileHandle(target); exists=true; }catch(e){}
+      if(exists && !confirm('Replace the existing '+target+'?')) continue;
+      busyOn('Saving '+target); busyStep(0,1,f.name);
+      try{ const h=await d.getFileHandle(target,{create:true}); const w=await h.createWritable(); await w.write(f); await w.close();
+        const back=await (await d.getFileHandle(target)).getFile(); if(back.size!==f.size) throw new Error('landed at the wrong size');
+        n++; logEvent('model.raw_saved',{product:it.pid,file:target,bytes:f.size,from:f.name});
+      }catch(e){ say('Could not save '+target+': '+e.message,true); }
+      finally{ busyOff(); }
+    }
+    if(n){ say(n+' raw file(s) saved as '+it.pid+'__raw.*'); await refreshCard(it,card); }
+  };
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('hot');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('hot'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('hot');takeRaw(e.dataTransfer.files);});
+  dz.querySelector('input').onchange=e=>takeRaw(e.target.files);
+  return card;
+}
+async function refreshCard(it,card){
+  it.shoot=await readShoot(it.cls,it.pid); it.scan=await scanModel(it.cls,it.pid);
+  const fresh=await mdlCard(it); const msg=card.querySelector('.mdl-msg').textContent;
+  fresh.querySelector('.mdl-msg').textContent=msg; fresh.querySelector('.mdl-msg').style.color=card.querySelector('.mdl-msg').style.color;
+  card.replaceWith(fresh);
+}
+async function copyMasterToClipboard(mf){
+  if(!navigator.clipboard||!window.ClipboardItem) throw new Error('clipboard images need Chrome/Edge');
+  const file=await mf.handle.getFile();
+  const bmp=await createImageBitmap(file);
+  const cv=document.createElement('canvas'); cv.width=bmp.width; cv.height=bmp.height;
+  cv.getContext('2d').drawImage(bmp,0,0); if(bmp.close) bmp.close();
+  const png=await new Promise(r=>cv.toBlob(r,'image/png'));     // the clipboard accepts PNG only
+  await navigator.clipboard.write([new ClipboardItem({'image/png':png})]);
+}
+async function exportTripoSet(it,fab){
+  if(!S.masters) throw new Error('01_MASTERS not set');
+  const dst=await dirFor(await modelDir(it.cls,it.pid,true),['_views'],true);
+  let n=0; const missing=[];
+  busyOn('Exporting Tripo views — '+it.pid);
+  try{
+    let i=0;
+    for(const [slot,label] of VIEW_SLOTS){
+      const mf=await masterFile(it.cls,it.pid,fab,slot);
+      busyStep(i++,VIEW_SLOTS.length,label);
+      if(!mf){ missing.push(label); continue; }
+      const file=await mf.handle.getFile();
+      const out=it.pid+'__'+label+'.jpg';
+      const h=await dst.getFileHandle(out,{create:true}); const w=await h.createWritable(); await w.write(file); await w.close();
+      const back=await (await dst.getFileHandle(out)).getFile(); if(back.size!==file.size) throw new Error(out+' landed at the wrong size');
+      n++;
+    }
+    await writeJSON(dst,'_views.json',{pid:it.pid,fabric_code:fab,slots:Object.fromEntries(VIEW_SLOTS),source:'01_MASTERS',exported:new Date().toISOString(),by:WHO||ROLE,missing});
+    logEvent('model.views_exported',{product:it.pid,variant:fab,n,missing});
+  } finally { busyOff(); }
+  return {n,missing};
+}
+['mdlCls','mdlQ','mdlSt'].forEach(id=>{ const el=$(id); if(!el) return;
+  el.addEventListener(id==='mdlQ'?'input':'change',()=>{ MDL.filter={cls:$('mdlCls').value,q:$('mdlQ').value.trim(),st:$('mdlSt').value}; buildModels(); }); });
+{const r=$('mdlRefresh'); if(r) r.onclick=()=>buildModels();}
+
+/* ---------- 3D LAB ---------- */
+async function labSource(){
+  if(!S.assets) throw new Error('the Assets root is not set');
+  const d=await dirFor(S.assets,[TOOLS_DIR]); const h=await d.getFileHandle(LAB_FILE);
+  return await h.getFile();
+}
+async function ensureLab(){
+  if(MDL.lab.frame&&MDL.lab.ready) return MDL.lab.frame;
+  const host=$('labHost'); host.innerHTML='<div class="qempty">Loading the lab from Woodbun Assets/'+TOOLS_DIR+'/'+LAB_FILE+' …</div>';
+  let file; try{ file=await labSource(); }
+  catch(e){ host.innerHTML='<div class="qempty">The lab file was not found at <b>Woodbun Assets/'+TOOLS_DIR+'/'+LAB_FILE+'</b>. Put lab.html there (it never goes online) and try again.<br><span class="hint">'+esc(e.message)+'</span></div>'; throw e; }
+  const html=await file.text();
+  if(MDL.lab.url) URL.revokeObjectURL(MDL.lab.url);
+  MDL.lab.url=URL.createObjectURL(new Blob([html],{type:'text/html'}));
+  const fr=document.createElement('iframe'); fr.id='labFrame'; fr.title='Woodbun 3D Lab';
+  host.innerHTML=''; host.appendChild(fr);
+  MDL.lab.frame=fr; MDL.lab.ready=false;
+  await new Promise((res,rej)=>{
+    const t=setTimeout(()=>rej(new Error('the lab did not signal ready within 30 s')),30000);
+    MDL.lab._onReady=()=>{clearTimeout(t);res();};
+    fr.src=MDL.lab.url;
+  });
+  $('labVer').textContent=MDL.lab.version||'';
+  return fr;
+}
+window.addEventListener('message',async e=>{
+  const fr=MDL.lab.frame; if(!fr||e.source!==fr.contentWindow) return;      // only our own lab frame
+  const m=e.data; if(!m||typeof m!=='object') return;
+  if(m.type==='wb:ready'){ MDL.lab.ready=true; MDL.lab.version=m.version; if(MDL.lab._onReady) MDL.lab._onReady(); return; }
+  if(m.type==='wb:loaded'){ labSay('Loaded '+m.pid+' into the lab. Set triangles/texture/colour, Compress, then Save release.'); return; }
+  if(m.type==='wb:error'){ labSay('Lab: '+m.error,true); return; }
+  if(m.type==='wb:export'){ try{ await saveRelease(m); }catch(err){ labSay('Release NOT saved — '+err.message,true); wbFail('Save release',err); } return; }
+  if(m.type==='wb:usdz'){ try{ await saveUsdz(m); }catch(err){ labSay('USDZ NOT saved — '+err.message,true); wbFail('Save USDZ',err); } return; }
+});
+function labSay(t,bad){ const s=$('labStatus'); if(!s) return; s.textContent=t; s.className='status '+(bad?'err':'ok'); }
+async function openInLab(it,fab){
+  setMode('lab');
+  MDL.lab.pid=it.pid; MDL.lab.cls=it.cls; MDL.lab.fab=fab;
+  $('labProd').textContent=it.cls+' · '+it.pid;
+  const fs=$('labFab'); fs.innerHTML=it.fabs.map(x=>'<option'+(x===fab?' selected':'')+'>'+esc(x)+'</option>').join('');
+  labSay('Loading '+it.pid+' …');
+  try{
+    await ensureLab();
+    const sc=await scanModel(it.cls,it.pid);
+    if(!sc.raw) throw new Error('no '+it.pid+'__raw.glb in 03_MODELS — drop it on the product card first');
+    const rawFile=await sc.raw.handle.getFile();
+    const glb=await rawFile.arrayBuffer();
+    const sh=await readShoot(it.cls,it.pid);
+    const refs=[]; for(const slot of REF_SLOTS){ const wf=await webFile(it.cls,it.pid,fab,slot); if(wf){ const f=await wf.handle.getFile(); refs.push({name:f.name,type:f.type||'image/jpeg',buf:await f.arrayBuffer()}); } }
+    let settings=null; const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0];
+    if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} }
+    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:it.pid+'__raw.glb',glb,
+      dims:dimsOk(sh)?{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h}:null,dims_status:sh&&sh.dims_status,settings,refs};
+    MDL.lab.frame.contentWindow.postMessage(msg,'*',[glb,...refs.map(r=>r.buf)]);
+    labSay('Sent '+it.pid+'__raw.glb ('+(rawFile.size/1e6).toFixed(1)+' MB) and '+refs.length+' reference photo(s) to the lab.');
+  }catch(e){ labSay(e.message,true); }
+}
+{const fs=$('labFab'); if(fs) fs.onchange=()=>{ MDL.lab.fab=fs.value; if(MDL.lab.pid&&MDL.byPid&&MDL.byPid[MDL.lab.pid]) openInLab(MDL.byPid[MDL.lab.pid],fs.value); };}
+{const b=$('labBack'); if(b) b.onclick=()=>setMode('models');}
+
+/* GLB header parse — enough to verify the export and estimate VRAM */
+function glbInfo(buf){
+  const dv=new DataView(buf);
+  if(dv.getUint32(0,true)!==0x46546C67) throw new Error('not a GLB (bad magic)');
+  const total=dv.getUint32(8,true); let off=12,json=null;
+  while(off<total){ const clen=dv.getUint32(off,true), ctype=dv.getUint32(off+4,true);
+    if(ctype===0x4E4F534A) json=JSON.parse(new TextDecoder().decode(new Uint8Array(buf,off+8,clen)));
+    off+=8+clen+((4-clen%4)%4); }
+  if(!json) throw new Error('GLB has no JSON chunk');
+  let tris=0,verts=0,draco=false;
+  (json.meshes||[]).forEach(m=>m.primitives.forEach(p=>{
+    if(p.extensions&&p.extensions.KHR_draco_mesh_compression) draco=true;
+    if(p.indices!=null) tris+=Math.floor(json.accessors[p.indices].count/3);
+    else if(p.attributes.POSITION!=null) tris+=Math.floor(json.accessors[p.attributes.POSITION].count/3);
+    if(p.attributes.POSITION!=null) verts+=json.accessors[p.attributes.POSITION].count; }));
+  return {tris,verts,draco,images:(json.images||[]).length,materials:(json.materials||[]).length,meshes:(json.meshes||[]).length};
+}
+/* decoded-texture bytes dominate GPU memory: px² × 4 bytes × 1.33 (mipmaps) per image,
+   plus ~32 bytes per vertex. An estimate, labelled as one in the manifest. */
+function vramEstimateMb(info,texPx){ return +((info.images*texPx*texPx*4*1.333 + info.verts*32)/1e6).toFixed(1); }
+async function sha256Buf(buf){ const h=await crypto.subtle.digest('SHA-256',buf); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+
+async function saveRelease(m){
+  const pid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
+  if(!pid||!cls) throw new Error('no product is open in the lab');
+  if(m.pid&&m.pid!==pid) throw new Error('the lab has '+m.pid+' loaded but the intake tool expects '+pid+' — reopen the product');
+  const sh=await readShoot(cls,pid);
+  if(!dimsOk(sh)) throw new Error('no approved dims in SHOOT.json for '+pid);
+  if(sh.dims_status!=='VERIFIED') throw new Error('dims for '+pid+' are not marked VERIFIED — check them against the photographs, click “Mark dims verified” on the product card, then save again');
+  const info=glbInfo(m.glb);
+  if(info.tris<1) throw new Error('the exported GLB has no triangles');
+  const sc=await scanModel(cls,pid);
+  const v=nextVersion(sc,fab), tag='v'+v;
+  const base=pid+'__'+fab+'__'+tag;
+  const d=await modelDir(cls,pid,true);
+  const sha=await sha256Buf(m.glb);
+  let srcSha=null; try{ if(sc.raw) srcSha=await sha256Buf(await (await sc.raw.handle.getFile()).arrayBuffer()); }catch(e){}
+  const texPx=(m.stats&&m.stats.texture_px)||(m.settings&&m.settings.texture_px)||0;
+  const manifest={pid,fabric_code:fab,model_version:tag,filename:base+'.glb',
+    dims_m:{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h},dims_status:sh.dims_status,dims_verified_at:sh.dims_verified_at||null,
+    frontOffset:0,vram_mb:vramEstimateMb(info,texPx),vram_mb_method:'estimate: images×px²×4×1.33 + verts×32',
+    tris:info.tris,verts:info.verts,images:info.images,materials:info.materials,file_mb:+(m.glb.byteLength/1e6).toFixed(3),
+    texture_px:texPx,texture_format:m.stats&&m.stats.texture_format,draco:!!info.draco,
+    draco_encode_speed:m.settings&&m.settings.draco_encode_speed,draco_position_bits:m.settings&&m.settings.draco_position_bits,
+    colour_baked:m.settings&&m.settings.colour,scale_mode:m.settings&&m.settings.scale_mode,
+    sha256:sha,source:sc.raw?sc.raw.name:null,source_sha256:srcSha,
+    built:new Date().toISOString(),built_by:WHO||ROLE,lab_version:m.settings&&m.settings.lab_version,intake_version:APP_VERSION,usdz:null};
+  busyOn('Saving release '+base); busyStep(0,3,base+'.glb');
+  try{
+    const h=await d.getFileHandle(base+'.glb',{create:true}); const w=await h.createWritable(); await w.write(m.glb); await w.close();
+    const back=await (await d.getFileHandle(base+'.glb')).getFile();
+    if(back.size!==m.glb.byteLength) throw new Error('GLB landed at the wrong size');
+    busyStep(1,3,base+'.manifest.json'); await writeJSON(d,base+'.manifest.json',manifest);
+    busyStep(2,3,base+'.refine.json'); await writeJSON(d,base+'.refine.json',m.settings||{});
+    busyStep(3,3,'');
+  } finally { busyOff(); }
+  logEvent('model.release_saved',{product:pid,variant:fab,version:tag,tris:info.tris,file_mb:manifest.file_mb,vram_mb:manifest.vram_mb,sha256:sha});
+  labSay('Saved '+base+'.glb ('+manifest.file_mb+' MB, '+info.tris.toLocaleString()+' tris, ~'+manifest.vram_mb+' MB VRAM) + manifest. Now “Make USDZ” to pair it.');
+  MDL.items=null;
+}
+async function saveUsdz(m){
+  const pid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
+  if(!pid||!cls) throw new Error('no product is open in the lab');
+  const sc=await scanModel(cls,pid);
+  const rel=latestRelease(sc,fab);
+  if(!rel) throw new Error('save the release GLB first — the USDZ takes the same version number as the GLB it pairs with');
+  const dv=new DataView(m.usdz); if(dv.getUint16(0,true)!==0x4B50) throw new Error('not a USDZ (zip magic missing)');
+  const base=rel.name.replace(/\.glb$/,'');
+  const d=await modelDir(cls,pid,true);
+  busyOn('Saving '+base+'.usdz'); busyStep(0,1,'');
+  try{
+    const h=await d.getFileHandle(base+'.usdz',{create:true}); const w=await h.createWritable(); await w.write(m.usdz); await w.close();
+    const back=await (await d.getFileHandle(base+'.usdz')).getFile(); if(back.size!==m.usdz.byteLength) throw new Error('USDZ landed at the wrong size');
+    try{ const mh=await d.getFileHandle(base+'.manifest.json'); const man=JSON.parse(await (await mh.getFile()).text());
+      man.usdz={filename:base+'.usdz',file_mb:+(m.usdz.byteLength/1e6).toFixed(3),tris:m.stats&&m.stats.tris,texture_px:m.stats&&m.stats.texture_px,sha256:await sha256Buf(m.usdz),built:new Date().toISOString()};
+      await writeJSON(d,base+'.manifest.json',man); }catch(e){}
+  } finally { busyOff(); }
+  logEvent('model.usdz_saved',{product:pid,variant:fab,version:rel.v,file_mb:+(m.usdz.byteLength/1e6).toFixed(3)});
+  labSay('Saved '+base+'.usdz ('+(m.usdz.byteLength/1e6).toFixed(2)+' MB). Open it on an iPhone to check Quick Look.');
+  MDL.items=null;
+}
+
 function setMode(m){
   S.mode=m;
-  ['mShoot','mEdit','mRev','mPanel','mMast','mUp','mDims','mLog'].forEach(b=>{const e=$(b); if(e) e.classList.remove('on');});
-  {const b=$({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast',uploads:'mUp',dims:'mDims',log:'mLog'}[m]); if(b) b.classList.add('on');}
-  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters',uploads:'Uploads',dims:'Dims',log:'Activity'}[m];
+  ['mShoot','mEdit','mRev','mPanel','mMast','mUp','mDims','mLog','mModels','mLab'].forEach(b=>{const e=$(b); if(e) e.classList.remove('on');});
+  {const b=$({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast',uploads:'mUp',dims:'mDims',log:'mLog',models:'mModels',lab:'mLab'}[m]); if(b) b.classList.add('on');}
+  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters',uploads:'Uploads',dims:'Dims',log:'Activity',models:'Models',lab:'3D Lab'}[m];
   $('workArea').style.display=(m==='shoot'||m==='edit')?'block':'none';
   $('revArea').style.display=(m==='review')?'block':'none';
   $('panelArea').style.display=(m==='panel')?'block':'none';
@@ -3052,6 +3488,8 @@ function setMode(m){
   $('dimsArea').style.display=(m==='dims')?'block':'none';
   {const la=$('logArea'); if(la) la.style.display=(m==='log')?'block':'none';}
   $('upArea').style.display=(m==='uploads')?'block':'none';
+  {const a=$('modelsArea'); if(a) a.style.display=(m==='models')?'block':'none';}
+  {const a=$('labArea'); if(a) a.style.display=(m==='lab')?'block':'none';}
   const working=(m==='shoot'||m==='edit');
   document.querySelector('.card').style.display=working?'block':'none';
   /* v15 (C4): the Clear / Save bar belongs to the working screens only. It used to
@@ -3064,6 +3502,8 @@ function setMode(m){
   if(m==='dims') buildDims();
   if(m==='uploads') buildUploads();
   if(m==='log') buildLog();
+  if(m==='models') buildModels();
+  if(m==='lab'&&!MDL.lab.pid) labSay('Open a product from Models — the lab needs a raw GLB to work on.');
   if(m==='shoot'||m==='edit') render();
 }
 $('mShoot').onclick=()=>setMode('shoot');
@@ -3073,6 +3513,8 @@ $('mPanel').onclick=()=>setMode('panel');
 $('mMast').onclick=()=>setMode('masters');
 $('mUp').onclick=()=>setMode('uploads');
 $('mDims').onclick=()=>setMode('dims');
+{const b=$('mModels'); if(b) b.onclick=()=>setMode('models');}
+{const b=$('mLab'); if(b) b.onclick=()=>setMode('lab');}
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 /* v15 (C5): choosing a product must reload its variant list. Before, only the
    Products > Start path did that, which is why the variant box stuck on 'default'. */
