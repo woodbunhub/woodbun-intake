@@ -692,7 +692,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.4';
+const APP_VERSION='v16.5';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3170,7 +3170,7 @@ async function masterFile(cls,pid,fab,slot){
 }
 /* what exists in 03_MODELS for one product */
 async function scanModel(cls,pid){
-  const out={views:0,raw:null,raws:[],rawUsdz:null,releases:[],refines:{},dir:null};
+  const out={views:0,raw:null,raws:[],rawUsdz:null,releases:[],refines:{},drafts:{},dir:null};
   let d; try{ d=await modelDir(cls,pid,false); }catch(e){ return out; }
   out.dir=d;
   try{ const v=await d.getDirectoryHandle('_views'); out.views=(await listFiles(v)).filter(f=>/\.jpe?g$/i.test(f.name)).length; }catch(e){}
@@ -3181,7 +3181,9 @@ async function scanModel(cls,pid){
     let m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.glb$').exec(n);
     if(m){ out.releases.push({fab:m[1],v:parseInt(m[2],10),name:n,handle:f.handle}); continue; }
     m=new RegExp('^'+pid+'__([a-z0-9-]+)__v(\\d+)\\.refine\\.json$').exec(n);
-    if(m){ (out.refines[m[1]]=out.refines[m[1]]||[]).push({v:parseInt(m[2],10),handle:f.handle}); }
+    if(m){ (out.refines[m[1]]=out.refines[m[1]]||[]).push({v:parseInt(m[2],10),handle:f.handle}); continue; }
+    m=new RegExp('^'+pid+'__([a-z0-9-]+)__draft\\.refine\\.json$').exec(n);
+    if(m){ out.drafts[m[1]]=f.handle; }
   }
   out.raws.sort((a,b)=>a.ext.localeCompare(b.ext)||a.n-b.n);
   for(const r of out.raws){ try{ r.size=(await r.handle.getFile()).size; }catch(e){ r.size=0; } }
@@ -3525,10 +3527,27 @@ window.addEventListener('message',async e=>{
   if(m.type==='wb:ready'){ MDL.lab.ready=true; MDL.lab.version=m.version; if(MDL.lab._onReady) MDL.lab._onReady(); return; }
   if(m.type==='wb:loaded'){ labSay('Loaded '+m.pid+' into the lab. Set triangles/texture/colour, Compress, then Save release.'); return; }
   if(m.type==='wb:loadedB'){ return; }
+  if(m.type==='wb:autosave'){ labAutosave(m); return; }
   if(m.type==='wb:error'){ labSay('Lab: '+m.error,true); return; }
   if(m.type==='wb:export'){ try{ await saveRelease(m); }catch(err){ labSay('Release NOT saved — '+err.message,true); wbFail('Save release',err); } return; }
   if(m.type==='wb:usdz'){ try{ await saveUsdz(m); }catch(err){ labSay('USDZ NOT saved — '+err.message,true); wbFail('Save USDZ',err); } return; }
 });
+/* v16.5: the lab posts its full settings after every change; they are filed as
+   <pid>__<fabric>__draft.refine.json beside the model, debounced so Drive is not hammered. */
+let AUTOSAVE_T=null, AUTOSAVE_LAST=null;
+function labAutosave(m){
+  AUTOSAVE_LAST=m; clearTimeout(AUTOSAVE_T);
+  AUTOSAVE_T=setTimeout(async()=>{
+    const mm=AUTOSAVE_LAST; if(!mm||!MDL.lab.pid||!MDL.lab.cls) return;
+    const fab=mm.fabric||MDL.lab.fab||'default';
+    try{
+      const d=await modelDir(MDL.lab.cls,MDL.lab.pid,true);
+      const st=Object.assign({},mm.settings,{pid:MDL.lab.pid,fabric_code:fab,raw:MDL.lab.raw||null});
+      await writeJSON(d,MDL.lab.pid+'__'+fab+'__draft.refine.json',st);
+      const v=$('labVer'); if(v) v.textContent=(MDL.lab.version||'')+' · draft saved '+new Date().toTimeString().slice(0,8);
+    }catch(e){ labSay('autosave failed: '+e.message,true); }
+  },1500);
+}
 function labSay(t,bad){ const s=$('labStatus'); if(!s) return; s.textContent=t; s.className='status '+(bad?'err':'ok'); }
 async function openInLab(it,fab,rawName){
   setMode('lab');
@@ -3549,8 +3568,10 @@ async function openInLab(it,fab,rawName){
     const glb=await rawFile.arrayBuffer();
     const sh=await readShoot(it.cls,it.pid);
     const refs=[]; for(const slot of REF_SLOTS){ const wf=await webFile(it.cls,it.pid,fab,slot); if(wf){ const f=await wf.handle.getFile(); refs.push({name:f.name,type:f.type||'image/jpeg',buf:await f.arrayBuffer()}); } }
-    let settings=null; const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0];
-    if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} }
+    /* v16.5: the autosaved draft (every slider change, filed by the lab) wins over the last release's settings */
+    let settings=null;
+    if(sc.drafts[fab]){ try{ settings=JSON.parse(await (await sc.drafts[fab].getFile()).text()); }catch(e){} }
+    if(!settings){ const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0]; if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} } }
     const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,
       dims:dimsOk(sh)?{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h}:null,dims_status:sh&&sh.dims_status,settings,refs};
     MDL.lab.frame.contentWindow.postMessage(msg,'*',[glb,...refs.map(r=>r.buf)]);
