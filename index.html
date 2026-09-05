@@ -692,7 +692,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.5';
+const APP_VERSION='v16.6';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3572,7 +3572,9 @@ async function openInLab(it,fab,rawName){
     let settings=null;
     if(sc.drafts[fab]){ try{ settings=JSON.parse(await (await sc.drafts[fab].getFile()).text()); }catch(e){} }
     if(!settings){ const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0]; if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} } }
-    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,
+    /* other-hand sibling (adri-corner-lhs ↔ adri-corner-rhs) with approved masters → the lab offers a mirrored release */
+    let sibling=null; { const m=/^(.*)-(lhs|rhs)$/.exec(it.pid); if(m){ const sp=m[1]+'-'+(m[2]==='lhs'?'rhs':'lhs'); if(MDL.byPid&&MDL.byPid[sp]) sibling=sp; } }
+    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,sibling,
       dims:dimsOk(sh)?{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h}:null,dims_status:sh&&sh.dims_status,settings,refs};
     MDL.lab.frame.contentWindow.postMessage(msg,'*',[glb,...refs.map(r=>r.buf)]);
     labSay('Sent '+raw.name+' ('+(rawFile.size/1e6).toFixed(1)+' MB) and '+refs.length+' reference photo(s) to the lab.');
@@ -3617,9 +3619,12 @@ function vramEstimateMb(info,texPx){ return +((info.images*texPx*texPx*4*1.333 +
 async function sha256Buf(buf){ const h=await crypto.subtle.digest('SHA-256',buf); return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join(''); }
 
 async function saveRelease(m){
-  const pid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
-  if(!pid||!cls) throw new Error('no product is open in the lab');
-  if(m.pid&&m.pid!==pid) throw new Error('the lab has '+m.pid+' loaded but the intake tool expects '+pid+' — reopen the product');
+  const openPid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
+  if(!openPid||!cls) throw new Error('no product is open in the lab');
+  if(m.pid&&m.pid!==openPid) throw new Error('the lab has '+m.pid+' loaded but the intake tool expects '+openPid+' — reopen the product');
+  /* a mirrored release is filed under the OTHER-hand product; its own dims + VERIFIED gate apply */
+  const pid=m.targetPid||openPid;
+  if(m.targetPid && !(MDL.byPid&&MDL.byPid[m.targetPid])) throw new Error(m.targetPid+' has no approved masters — cannot file a mirrored release under it');
   const sh=await readShoot(cls,pid);
   if(!dimsOk(sh)) throw new Error('no approved dims in SHOOT.json for '+pid);
   if(sh.dims_status!=='VERIFIED') throw new Error('dims for '+pid+' are not marked VERIFIED — check them against the photographs, click “Mark dims verified” on the product card, then save again');
@@ -3630,7 +3635,8 @@ async function saveRelease(m){
   const base=pid+'__'+fab+'__'+tag;
   const d=await modelDir(cls,pid,true);
   const sha=await sha256Buf(m.glb);
-  const srcRaw=sc.raws.find(r=>r.name===MDL.lab.raw)||sc.raw;
+  const scOpen=m.targetPid? await scanModel(cls,openPid) : sc;
+  const srcRaw=scOpen.raws.find(r=>r.name===MDL.lab.raw)||scOpen.raw;
   let srcSha=null; try{ if(srcRaw) srcSha=await sha256Buf(await (await srcRaw.handle.getFile()).arrayBuffer()); }catch(e){}
   const texPx=(m.stats&&m.stats.texture_px)||(m.settings&&m.settings.texture_px)||0;
   const manifest={pid,fabric_code:fab,model_version:tag,filename:base+'.glb',
@@ -3641,6 +3647,7 @@ async function saveRelease(m){
     draco_encode_speed:m.settings&&m.settings.draco_encode_speed,draco_position_bits:m.settings&&m.settings.draco_position_bits,
     colour_baked:m.settings&&m.settings.colour,scale_mode:m.settings&&m.settings.scale_mode,
     sha256:sha,source:srcRaw?srcRaw.name:null,source_try:srcRaw?srcRaw.n:null,source_sha256:srcSha,
+    mirrored_from:m.mirroredFrom||null,mirror_axis:m.mirroredFrom?'x':null,
     built:new Date().toISOString(),built_by:WHO||ROLE,lab_version:m.settings&&m.settings.lab_version,intake_version:APP_VERSION,usdz:null};
   busyOn('Saving release '+base); busyStep(0,3,base+'.glb');
   try{
@@ -3651,12 +3658,12 @@ async function saveRelease(m){
     busyStep(2,3,base+'.refine.json'); await writeJSON(d,base+'.refine.json',m.settings||{});
     busyStep(3,3,'');
   } finally { busyOff(); }
-  logEvent('model.release_saved',{product:pid,variant:fab,version:tag,tris:info.tris,file_mb:manifest.file_mb,vram_mb:manifest.vram_mb,sha256:sha});
-  labSay('Saved '+base+'.glb ('+manifest.file_mb+' MB, '+info.tris.toLocaleString()+' tris, ~'+manifest.vram_mb+' MB VRAM) + manifest. Now “Make USDZ” to pair it.');
+  logEvent('model.release_saved',{product:pid,variant:fab,version:tag,tris:info.tris,file_mb:manifest.file_mb,vram_mb:manifest.vram_mb,sha256:sha,mirrored_from:m.mirroredFrom||undefined});
+  labSay('Saved '+base+'.glb ('+manifest.file_mb+' MB, '+info.tris.toLocaleString()+' tris, ~'+manifest.vram_mb+' MB VRAM) + manifest'+(m.mirroredFrom?' — mirrored from '+m.mirroredFrom:'. Now “Make USDZ” to pair it.'));
   MDL.items=null;
 }
 async function saveUsdz(m){
-  const pid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
+  const pid=m.targetPid||MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
   if(!pid||!cls) throw new Error('no product is open in the lab');
   const sc=await scanModel(cls,pid);
   const rel=latestRelease(sc,fab);
