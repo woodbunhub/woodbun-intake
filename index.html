@@ -486,6 +486,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
       <div class="f"><label>Product</label><div class="code" id="labProd">— open a product from Models —</div></div>
       <div class="f"><label>Raw try (Tripo output)</label><select id="labRaw" style="min-width:160px"></select></div>
       <div class="f"><label>Compare in RESULT</label><select id="labCmp" style="min-width:160px"><option value="">same raw try</option></select></div>
+      <div class="f"><label>Check a saved release</label><select id="labChk" style="min-width:200px" title="Loads a saved GLB from 03_MODELS into RESULT exactly as it ships, in the pop-in view — for checking orientation. Nothing is written."><option value="">— pick a release —</option></select></div>
       <div class="f"><label>Fabric / finish for this release</label><select id="labFab" style="min-width:160px"></select></div>
       <div style="flex:1"></div>
       <span class="hint" id="labVer"></span>
@@ -692,7 +693,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.7';
+const APP_VERSION='v16.8';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3581,6 +3582,13 @@ async function openInLab(it,fab,rawName){
     MDL.lab.raw=raw.name;
     const rs=$('labRaw'); rs.innerHTML=glbs.map(r=>'<option value="'+esc(r.name)+'"'+(r.name===raw.name?' selected':'')+'>try '+r.n+' · '+(r.size/1e6).toFixed(1)+' MB</option>').join('');
     {const cs=$('labCmp'); if(cs) cs.innerHTML='<option value="">same raw try</option>'+glbs.filter(r=>r.name!==raw.name).map(r=>'<option value="'+esc(r.name)+'">try '+r.n+' · '+(r.size/1e6).toFixed(1)+' MB</option>').join('');}
+    /* v16.8: saved releases of this product (all fabrics) + of its sibling — load into RESULT to check the pop-in orientation */
+    {const ck=$('labChk'); if(ck){
+      const rels=sc.releases.map(r=>({pid:it.pid,cls:it.cls,name:r.name,label:r.name.replace(it.pid+'__','')+(r.usdz?' (+usdz)':'')}));
+      const sb=await siblingFor(it); if(sb.pid){ try{ const ss=await scanModel(it.cls,sb.pid); ss.releases.forEach(r=>rels.push({pid:sb.pid,cls:it.cls,name:r.name,label:sb.pid+' · '+r.name.replace(sb.pid+'__','')})); }catch(e){} }
+      MDL.lab.chk=rels;
+      ck.innerHTML='<option value="">'+(rels.length?'— pick a release —':'no saved releases yet')+'</option>'+rels.map((r,i)=>'<option value="'+i+'">'+esc(r.label)+'</option>').join('');
+    }}
     const rawFile=await raw.handle.getFile();
     const glb=await rawFile.arrayBuffer();
     const sh=await readShoot(it.cls,it.pid);
@@ -3613,6 +3621,18 @@ async function openInLab(it,fab,rawName){
     const buf=await (await r.handle.getFile()).arrayBuffer();
     MDL.lab.frame.contentWindow.postMessage({type:'wb:loadB',glbName:r.name,glb:buf},'*',[buf]);
     labSay('RESULT viewer → '+r.name+(cs.value?' (compare against '+MDL.lab.raw+' in ORIGINAL)':''));
+  }catch(e){ labSay(e.message,true); }
+};}
+{const ck=$('labChk'); if(ck) ck.onchange=async()=>{
+  try{
+    if(!ck.value||!MDL.lab.frame) return;
+    const r=(MDL.lab.chk||[])[+ck.value]; if(!r) return;
+    const sc=await scanModel(r.cls,r.pid); const rel=sc.releases.find(x=>x.name===r.name);
+    if(!rel) throw new Error(r.name+' not found in 03_MODELS');
+    const buf=await (await rel.handle.getFile()).arrayBuffer();
+    MDL.lab.frame.contentWindow.postMessage({type:'wb:loadB',glbName:r.name,glb:buf,check:true},'*',[buf]);
+    labSay('RESULT → saved release '+r.name+' (as it ships, pop-in view). Nothing is written until you Compress + Save.');
+    logEvent('model.release_checked',{product:r.pid,file:r.name});
   }catch(e){ labSay(e.message,true); }
 };}
 {const b=$('labBack'); if(b) b.onclick=()=>setMode('models');}
