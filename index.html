@@ -692,7 +692,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.6';
+const APP_VERSION='v16.7';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3548,6 +3548,23 @@ function labAutosave(m){
     }catch(e){ labSay('autosave failed: '+e.message,true); }
   },1500);
 }
+/* is this id a product of ours? the register is the catalogue; approved masters count too */
+function inRegister(pid,cls){ return !!((S.products||[]).find(p=>p.id===pid&&(!cls||!p.class||p.class===cls)) || (MDL.byPid&&MDL.byPid[pid])); }
+async function siblingFor(it){
+  const none={pid:null,kind:null,dims:null,blocked:null};
+  let m=/^(.*)-(lhs|rhs)$/.exec(it.pid);
+  if(m){ const sp=m[1]+'-'+(m[2]==='lhs'?'rhs':'lhs'); return inRegister(sp,it.cls)?{pid:sp,kind:'mirror',dims:null,blocked:null}:none; }
+  m=/^(.*)-(king|queen)$/.exec(it.pid);
+  if(m&&it.cls==='bed'){
+    const sp=m[1]+'-'+(m[2]==='king'?'queen':'king');
+    if(!inRegister(sp,'bed')) return none;                       // not a listed product → no function at all
+    const sh=await readShoot('bed',sp);
+    if(!dimsOk(sh)) return {pid:sp,kind:'scale',dims:null,blocked:'no dims in SHOOT.json for '+sp+' — enter them in Dims mode first'};
+    if(sh.dims_status!=='VERIFIED') return {pid:sp,kind:'scale',dims:null,blocked:'dims for '+sp+' are not VERIFIED — Mark dims verified on its card first'};
+    return {pid:sp,kind:'scale',dims:{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h},blocked:null};
+  }
+  return none;
+}
 function labSay(t,bad){ const s=$('labStatus'); if(!s) return; s.textContent=t; s.className='status '+(bad?'err':'ok'); }
 async function openInLab(it,fab,rawName){
   setMode('lab');
@@ -3572,9 +3589,13 @@ async function openInLab(it,fab,rawName){
     let settings=null;
     if(sc.drafts[fab]){ try{ settings=JSON.parse(await (await sc.drafts[fab].getFile()).text()); }catch(e){} }
     if(!settings){ const rf=(sc.refines[fab]||[]).sort((a,b)=>b.v-a.v)[0]; if(rf){ try{ settings=JSON.parse(await (await rf.handle.getFile()).text()); }catch(e){} } }
-    /* other-hand sibling (adri-corner-lhs ↔ adri-corner-rhs) with approved masters → the lab offers a mirrored release */
-    let sibling=null; { const m=/^(.*)-(lhs|rhs)$/.exec(it.pid); if(m){ const sp=m[1]+'-'+(m[2]==='lhs'?'rhs':'lhs'); if(MDL.byPid&&MDL.byPid[sp]) sibling=sp; } }
-    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,sibling,
+    /* sibling product that shares this raw model:
+         lhs↔rhs  → "mirror" (needs approved masters or a register entry for the other hand)
+         king↔queen (beds) → "scale": width only, from the sibling's VERIFIED SHOOT.json.
+       v16.7: the bed sibling is offered ONLY when it is listed in the product register —
+       a queen that is not a product of ours never gets a button. */
+    const sb=await siblingFor(it);
+    const msg={type:'wb:load',pid:it.pid,fabric:fab,glbName:raw.name,glb,sibling:sb.pid,siblingKind:sb.kind,siblingDims:sb.dims,siblingBlocked:sb.blocked,
       dims:dimsOk(sh)?{w:sh.dims_m.w,d:sh.dims_m.d,h:sh.dims_m.h}:null,dims_status:sh&&sh.dims_status,settings,refs};
     MDL.lab.frame.contentWindow.postMessage(msg,'*',[glb,...refs.map(r=>r.buf)]);
     labSay('Sent '+raw.name+' ('+(rawFile.size/1e6).toFixed(1)+' MB) and '+refs.length+' reference photo(s) to the lab.');
@@ -3622,9 +3643,9 @@ async function saveRelease(m){
   const openPid=MDL.lab.pid, cls=MDL.lab.cls, fab=m.fabric||MDL.lab.fab;
   if(!openPid||!cls) throw new Error('no product is open in the lab');
   if(m.pid&&m.pid!==openPid) throw new Error('the lab has '+m.pid+' loaded but the intake tool expects '+openPid+' — reopen the product');
-  /* a mirrored release is filed under the OTHER-hand product; its own dims + VERIFIED gate apply */
+  /* a derived (mirrored / width-scaled) release is filed under the SIBLING product; its own dims + VERIFIED gate apply */
   const pid=m.targetPid||openPid;
-  if(m.targetPid && !(MDL.byPid&&MDL.byPid[m.targetPid])) throw new Error(m.targetPid+' has no approved masters — cannot file a mirrored release under it');
+  if(m.targetPid && !inRegister(m.targetPid,cls)) throw new Error(m.targetPid+' is not in the product register — cannot file a derived release under it');
   const sh=await readShoot(cls,pid);
   if(!dimsOk(sh)) throw new Error('no approved dims in SHOOT.json for '+pid);
   if(sh.dims_status!=='VERIFIED') throw new Error('dims for '+pid+' are not marked VERIFIED — check them against the photographs, click “Mark dims verified” on the product card, then save again');
@@ -3648,6 +3669,7 @@ async function saveRelease(m){
     colour_baked:m.settings&&m.settings.colour,scale_mode:m.settings&&m.settings.scale_mode,
     sha256:sha,source:srcRaw?srcRaw.name:null,source_try:srcRaw?srcRaw.n:null,source_sha256:srcSha,
     mirrored_from:m.mirroredFrom||null,mirror_axis:m.mirroredFrom?'x':null,
+    derived_from:m.derivedFrom||m.mirroredFrom||null,derivation:m.derive||(m.mirroredFrom?{kind:'mirror_x'}:null),
     built:new Date().toISOString(),built_by:WHO||ROLE,lab_version:m.settings&&m.settings.lab_version,intake_version:APP_VERSION,usdz:null};
   busyOn('Saving release '+base); busyStep(0,3,base+'.glb');
   try{
@@ -3658,8 +3680,10 @@ async function saveRelease(m){
     busyStep(2,3,base+'.refine.json'); await writeJSON(d,base+'.refine.json',m.settings||{});
     busyStep(3,3,'');
   } finally { busyOff(); }
-  logEvent('model.release_saved',{product:pid,variant:fab,version:tag,tris:info.tris,file_mb:manifest.file_mb,vram_mb:manifest.vram_mb,sha256:sha,mirrored_from:m.mirroredFrom||undefined});
-  labSay('Saved '+base+'.glb ('+manifest.file_mb+' MB, '+info.tris.toLocaleString()+' tris, ~'+manifest.vram_mb+' MB VRAM) + manifest'+(m.mirroredFrom?' — mirrored from '+m.mirroredFrom:'. Now “Make USDZ” to pair it.'));
+  logEvent('model.release_saved',{product:pid,variant:fab,version:tag,tris:info.tris,file_mb:manifest.file_mb,vram_mb:manifest.vram_mb,sha256:sha,derived_from:manifest.derived_from||undefined,derivation:manifest.derivation||undefined});
+  const dv=manifest.derivation;
+  labSay('Saved '+base+'.glb ('+manifest.file_mb+' MB, '+info.tris.toLocaleString()+' tris, ~'+manifest.vram_mb+' MB VRAM) + manifest'+
+    (dv?(dv.kind==='scale_x'?' — width ×'+dv.factor+' from '+manifest.derived_from:' — mirrored from '+manifest.derived_from):'. Now “Make USDZ” to pair it.'));
   MDL.items=null;
 }
 async function saveUsdz(m){
