@@ -693,7 +693,7 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.8';
+const APP_VERSION='v16.9';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -3720,7 +3720,7 @@ async function saveUsdz(m){
     const h=await d.getFileHandle(base+'.usdz',{create:true}); const w=await h.createWritable(); await w.write(m.usdz); await w.close();
     const back=await (await d.getFileHandle(base+'.usdz')).getFile(); if(back.size!==m.usdz.byteLength) throw new Error('USDZ landed at the wrong size');
     try{ const mh=await d.getFileHandle(base+'.manifest.json'); const man=JSON.parse(await (await mh.getFile()).text());
-      man.usdz={filename:base+'.usdz',file_mb:+(m.usdz.byteLength/1e6).toFixed(3),tris:m.stats&&m.stats.tris,texture_px:m.stats&&m.stats.texture_px,sha256:await sha256Buf(m.usdz),built:new Date().toISOString()};
+      man.usdz={filename:base+'.usdz',file_mb:+(m.usdz.byteLength/1e6).toFixed(3),tris:m.stats&&m.stats.tris,texture_px:m.stats&&m.stats.texture_px,texture_format:(m.stats&&m.stats.texture_format)||'png',usdz_settings:m.settings&&m.settings.usdz||null,sha256:await sha256Buf(m.usdz),built:new Date().toISOString()};
       await writeJSON(d,base+'.manifest.json',man); }catch(e){}
   } finally { busyOff(); }
   logEvent('model.usdz_saved',{product:pid,variant:fab,version:rel.v,file_mb:+(m.usdz.byteLength/1e6).toFixed(3)});
