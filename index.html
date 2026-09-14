@@ -693,7 +693,23 @@ const ROLE_HASHES={
  '8df716c804458025b0c2d4331c6bd018a5f9353b168af10526f8965fa74d79fe':{r:'editor',who:'editor-3'},
  '5783c438e5cc6c013e394595bb6aa9f57d2b439d1fd4e523d06c95e4dea27bbc':{r:'editor',who:'editor-4'},
  'f0b6701105984b5cdc248fcd50c4faa3dcf26b80f6fa6105813a0faee590a8db':'staff'};
-const APP_VERSION='v16.9';
+/* ===== v16.10 (2026-09-14) — the evening's four faults, fixed at the source =====
+   1. Ghost files. Google Drive forks a file written twice within a second into
+      "name (1).jpg", usually 0 bytes. vesta-king slot 08 showed "Not a JPEG" while the
+      real 1.25 MB file sat beside it. listFiles() now skips image files with " (n)"
+      before the extension, and every loader skips 0-byte images. Ghosts are counted in
+      S.ghosts and named in the status line so someone deletes them.
+   2. One unreadable file no longer blanks a whole set — the Edit & upload and Review
+      loaders catch per file instead of per set.
+   3. Silent un-sending. Removing or replacing an image deletes READY.json, which pulls the
+      set out of the Review queue; ten sets went missing this way today. The set still
+      leaves the queue (an edited set must be re-reviewed) but the editor is now TOLD, in
+      red, until Send for review is clicked again.
+   4. An approved product opened in Edit & upload as empty slots with no explanation. It
+      now says when it was approved and that its images are in Masters.
+   Also: the per-slot "Reference" pictures (refs/<class>-NN.jpg) were never uploaded to
+   the site and 404'd on every render; the block is gone. Orientation refs stay. */
+const APP_VERSION='v16.10';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -918,7 +934,10 @@ async function loadRegister(){
 
 /* ---------- filesystem ---------- */
 async function dirFor(root,parts,create){let d=root;for(const p of parts){d=await d.getDirectoryHandle(p,{create:!!create});}return d;}
-async function listFiles(h){const o=[];for await(const [n,fh] of h.entries()){if(fh.kind==='file')o.push({name:n,handle:fh});}return o;}
+/* v16.10: Drive conflict forks — "name (1).jpg" — are skipped for images and remembered. */
+const GHOST_RE=/ \(\d+\)\.(jpe?g|png|webp)$/i;
+function noteGhost(name){ S.ghosts=S.ghosts||[]; if(S.ghosts.indexOf(name)<0) S.ghosts.push(name); }
+async function listFiles(h){const o=[];for await(const [n,fh] of h.entries()){if(fh.kind!=='file')continue; if(GHOST_RE.test(n)){noteGhost(n);continue;} o.push({name:n,handle:fh});}return o;}
 /* v15.2 (D): the folder tree is read once and remembered. Every write path calls
    invalidateWalk(), and the Review screen has a Refresh button, so nothing here can
    go stale silently. At 14 products this is invisible; at 145 on a cloud-streamed
@@ -1692,11 +1711,23 @@ async function workDir(id,f,create){
 }
 async function loadExisting(){
   S.files={}; S.subs={}; S.ready=false; S.rework=false; S.notes={}; S.flagMsg=''; S.hist={};
+  S.leftQueue=false; S.approvedInfo=null; S.ghosts=[];   // v16.10
   const id=pid(), f=fab();
   if(!S.root||!id||!f){ render(); return; }
   const {dir:td, rework}=await workDir(id,f,false);   // v15.2 (D): read-only browse
   S.rework=rework;
-  if(!td){ render(); return; }                       // nothing filed yet — nothing to create
+  if(!td){
+    /* v16.10: nothing in _INBOX — is that because it was approved? Say so instead of
+       showing eleven empty slots to an editor who uploaded them last week. */
+    if(S.masters){ try{
+      const md=await dirFor(S.masters,[S.cls,id,f]);
+      let newest=0, n=0;
+      for(const fl of await listFiles(md)){ if(!/\.(jpe?g|png|webp)$/i.test(fl.name)) continue; n++;
+        try{ newest=Math.max(newest,(await fl.handle.getFile()).lastModified||0); }catch(e){} }
+      if(n) S.approvedInfo={n:n,when:newest?new Date(newest).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''};
+    }catch(e){} }
+    render(); return;                                // nothing filed yet — nothing to create
+  }
   /* v15.2 (C1): the history is read whether or not this set is in rework — the
      editor should be able to look back at what was said last time even when the
      current round is clean. */
@@ -1721,8 +1752,10 @@ async function loadExisting(){
       const m=fl.name.match(/__(\d{2})([a-z]?)__/); if(!m) continue;
       const key=m[1]+(m[2]||'');
       const lk=isLocked(fl.name);
+      /* v16.10: one file that Drive cannot serve must not blank the other ten. */
+      let file; try{ file=await fl.handle.getFile(); }catch(e){ noteGhost(fl.name+' (unreadable)'); continue; }
+      if(!file.size){ noteGhost(fl.name+' (0 bytes)'); continue; }
       if(m[2]){ const b=parseInt(m[1],10); S.subs[b]=Math.max(S.subs[b]||0, m[2].charCodeAt(0)-96); }
-      const file=await fl.handle.getFile();
       S.files[key]={existing:true,url:URL.createObjectURL(file),name:fl.name,locked:lk,
                     mtime:file.lastModified||0};
     }
@@ -1989,6 +2022,7 @@ async function putSlot(key,file){
     const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
     const h=await td.getFileHandle(fname(sk,ext),{create:true});
     const w=await h.createWritable(); await w.write(file); await w.close();
+    if(S.ready) S.leftQueue=true;                  // v16.10: tell the editor, loudly
     try{await td.removeEntry('READY.json');}catch(e){}
     S.ready=false; invalidateWalk();               // v15.2 (D)
     S.files[key]={existing:true,url:URL.createObjectURL(file),name:fname(sk,ext)};
@@ -2031,6 +2065,7 @@ async function delSlot(key){
       if(fl.name.indexOf(stem0+'.')===0){ try{await td.removeEntry(fl.name);}catch(e){} }
     }
     let wasReady=S.ready;
+    if(wasReady) S.leftQueue=true;                 // v16.10
     try{await td.removeEntry('READY.json');}catch(e){} S.ready=false;
     invalidateWalk();
     logEvent('image.remove',{cls:S.cls,product:pid(),variant:fab(),slot:key,
@@ -2670,7 +2705,7 @@ function clearDraft(it){ S.revDrafts=S.revDrafts||{}; delete S.revDrafts[revKey(
 function markDraft(it){ S.revMarkDrafts=S.revMarkDrafts||{}; const k=revKey(it);
   return (S.revMarkDrafts[k]=S.revMarkDrafts[k]||{}); }
 async function openReview(it){
-  S.revItem=it; S.revFiles=Object.assign({},revDraft(it)); S.revMark=Object.assign({},markDraft(it)); S.revMissing=[];
+  S.revItem=it; S.ghosts=[];   // v16.10: ghost list is per folder S.revFiles=Object.assign({},revDraft(it)); S.revMark=Object.assign({},markDraft(it)); S.revMissing=[];
   /* v15.13: a mark-up drawn in an earlier round travels with the set. Pull a set back
      from the editor and the drawing is still there — visible, editable, and re-sent as
      it stands if you do not redraw it. An unsent draft always wins over the disk copy. */
@@ -2792,20 +2827,27 @@ async function openReview(it){
 
   g.innerHTML='';
   const missReq=[];
+  /* v16.10: a 0-byte or unreadable file is reported by name, not rendered as a broken card. */
+  const safeFile=async d=>{ let f=null; try{ f=await d.handle.getFile(); }catch(e){ noteGhost(d.name+' (unreadable)'); return null; }
+    if(!f.size){ noteGhost(d.name+' (0 bytes)'); return null; } return f; };
   for(const sk of expected){
     const d=onDisk[sk.key];
     let rec=null;
-    if(d){ rec={file:await d.handle.getFile(),name:d.name};
-           try{ S.revSpec[sk.key]=await validateImage(rec.file); }catch(e){ S.revSpec[sk.key]=null; } }
-    else if(!sk.opt) missReq.push(sk.key);
+    if(d){ const f=await safeFile(d);
+           if(f){ rec={file:f,name:d.name};
+                  try{ S.revSpec[sk.key]=await validateImage(f); }catch(e){ S.revSpec[sk.key]=null; } } }
+    if(!rec && !sk.opt) missReq.push(sk.key);
     g.appendChild(mkCard(sk.key,d?d.lbl:(sk.k||''),rec,sk));
   }
   for(const key of orphans){
     const d=onDisk[key];
-    {const f=await d.handle.getFile();
+    {const f=await safeFile(d); if(!f) continue;
      try{ S.revSpec[key]=await validateImage(f); }catch(e){ S.revSpec[key]=null; }
      g.appendChild(mkCard(key,d.lbl,{file:f,name:d.name},null));}
   }
+  if(S.ghosts&&S.ghosts.length){ const w=document.createElement('div'); w.className='status err';
+    w.textContent='Ignored '+S.ghosts.length+' broken file(s) in this folder — delete them in Drive: '+S.ghosts.join(', ');
+    g.insertAdjacentElement('afterbegin',w); }
   S.revMissing=missReq;
   updateRevNote();                                  // v15.3
 
@@ -2968,8 +3010,8 @@ function render(){
       (mkUrl?'<img class="mkimg" src="'+mkUrl+'" data-mk="'+sk.key+'">':'')+'</div>';
     h+=histHTML(S.hist&&S.hist[sk.key]);   // v15.2 (C1)
     h+='<div class="why">'+sk.why+'</div>';
-    const rp='refs/'+S.cls+'-'+pad(sk.i)+'.jpg';
-    h+='<div class="reflabel">Reference</div><div class="refwrap" data-ref="'+rp+'" data-t="'+sk.t+'" data-w="'+sk.why+'"><img src="'+rp+'" onerror="this.parentNode.previousElementSibling.style.display=\'none\';this.parentNode.style.display=\'none\'"><span class="zoom">Click to enlarge</span></div>';
+    /* v16.10: the per-slot reference pictures (refs/<class>-NN.jpg) were never put on the
+       site — every render 404'd nine times and hid the block. Removed. */
     if(S.mode==='edit'){
       const f=S.files[sk.key];
       const src=f?(f.existing?f.url:URL.createObjectURL(f)):null;
@@ -2989,7 +3031,6 @@ function render(){
     if(base&&base.sub) h+='<div class="tools"><button class="small" data-add="'+sk.i+'">+ another '+pad(sk.i)+'</button></div>';
     d.innerHTML=h; g.appendChild(d);
   }
-  document.querySelectorAll('.refwrap').forEach(w=>w.onclick=()=>lightbox(w.dataset.ref,w.dataset.t,w.dataset.w));
   document.querySelectorAll('img.mkimg').forEach(im=>im.onclick=e=>{e.preventDefault();e.stopPropagation();
     lightbox(im.src,im.dataset.mk+' · marked by the reviewer','');});   // v15.12
   document.querySelectorAll('.drop input').forEach(i=>i.onchange=e=>{const f=e.target.files[0];if(f) putSlot(e.target.dataset.k,f);});
@@ -3020,6 +3061,15 @@ function progress(){
   st.className='status';
   if(!S.root){ st.textContent='Choose your working folder first.'; }
   else if(!ok){ st.textContent = 'Pick a class, a product, and a variant (staff defines the variant list).'; }
+  else if(S.mode==='edit'&&S.approvedInfo){                                                   // v16.10
+    st.className='status ok';
+    st.textContent='APPROVED'+(S.approvedInfo.when?' on '+S.approvedInfo.when:'')+' — its '+S.approvedInfo.n+' images are in Masters. Nothing to do here. Ask the owner to reopen it if a change is needed.'; }
+  else if(S.mode==='edit'&&S.leftQueue){                                                      // v16.10
+    st.className='status err';
+    st.textContent='THIS SET HAS LEFT THE REVIEW QUEUE because you changed it. The owner will not see it until you click Send for review again.'; }
+  else if(S.mode==='edit'&&S.ghosts&&S.ghosts.length){                                        // v16.10
+    st.className='status err';
+    st.textContent='Ignored '+S.ghosts.length+' broken file(s) — delete in Drive: '+S.ghosts.join(', '); }
   else if(redo.length){ st.className='status err'; st.textContent='Still to redo: '+redo.join(', ')+' — replace them, then Send for review.'; }
   else if(missing.length){
     st.className='status err';
@@ -3027,7 +3077,7 @@ function progress(){
     st.textContent=(S.mode==='shoot'?'Not shot yet: ':'Not uploaded: ')+missing.join(', ')+(S.mode==='shoot'?'':'');
 
   } else { st.className='status ok'; st.textContent=S.mode==='shoot'?'All required shots captured — save the coverage record.':'All images saved. Send for review when you are done.'; }
-  $('save').textContent=S.mode==='shoot'?'Save coverage + dimensions':(S.ready?'Sent ✓ — Send again':'Send for review');
+  $('save').textContent=S.mode==='shoot'?'Save coverage + dimensions':(S.ready?'Sent ✓ — Send again':(S.leftQueue?'Send for review — REQUIRED':'Send for review'));
 }
 function preview(){
   if(S.mode!=='edit'||!valid(pid())||!fab()){$('preview').textContent='Pick a product and fabric, then add images.';return;}
@@ -3102,7 +3152,7 @@ async function sendForReview(){
     images:Object.keys(man.slots).length, missing:missing.length?missing:undefined,
     graduated_from_rework:!!S.rework});                                    // v15.5
   invalidateWalk();                                 // v15.2 (D)
-  S.ready=true; S.notes={}; S.flagMsg='';
+  S.ready=true; S.leftQueue=false; S.notes={}; S.flagMsg='';
   $('status').className='status ok';
   $('status').textContent='Sent for review — '+id+' · '+f+'.'+(missing.length?'  Sent incomplete: '+missing.join(', ')+' not uploaded — the admin can comment on those slots.':'');
   await refreshQueues(); render();
