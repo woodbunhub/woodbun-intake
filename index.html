@@ -315,6 +315,47 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .dropz.hot{border-color:var(--teal);background:var(--ok-bg);color:var(--teal)}
 /* v16.11 (23 Sep 2026): the lab uses the whole screen width — the 1200 px page column left most of a wide monitor empty */
 #labArea{width:calc(100vw - 40px);margin-left:calc(50% - 50vw + 20px)}
+/* v16.12 Set colour */
+#scArea{width:calc(100vw - 40px);margin-left:calc(50% - 50vw + 20px)}
+.sc-grid{display:grid;gap:8px;align-items:start;margin-top:10px}
+.sc-corner{position:sticky;top:0}
+.sc-hd{position:sticky;top:0;z-index:6;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 11px;font-size:12.5px;box-shadow:0 4px 14px rgba(43,33,24,.08)}
+.sc-hd.master{border-color:var(--teal);box-shadow:inset 0 0 0 2px var(--teal),0 4px 14px rgba(43,33,24,.08)}
+.sc-pid{font:650 14px var(--mono);color:var(--espresso)}
+.sc-sub{font-size:12px;color:var(--muted);margin:2px 0 6px}
+.sc-sub select{min-width:0;padding:3px 6px;font-size:12px}
+.sc-mbadge{display:inline-block;font:650 11px var(--mono);letter-spacing:.04em;color:#fff;background:var(--teal);border-radius:6px;padding:4px 8px}
+.sc-de{margin:4px 0 6px}
+.sc-btns{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0 8px}
+.sc-ctl{display:grid;grid-template-columns:82px minmax(0,1fr) 56px;gap:6px;align-items:center;margin:2px 0}
+.sc-ctl span{font-size:11.5px;color:var(--muted)}
+.sc-ctl input[type=range]{min-width:0;width:100%;padding:0;border:0;accent-color:var(--teal)}
+.sc-ctl input[type=number]{min-width:0;width:56px;padding:3px 4px;font-size:12px}
+.sc-selnote{font-size:11px;margin-top:4px}
+.sc-rowlab{position:sticky;left:0;z-index:2;font:650 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding-top:10px;word-break:break-word}
+.sc-cell{position:relative;background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;aspect-ratio:1/1}
+.sc-cell canvas{display:block;width:100%;height:100%;object-fit:contain;cursor:zoom-in;touch-action:none}
+.sc-cell.target{outline:3px dashed var(--teal);outline-offset:-3px}
+.sc-cell.target canvas{cursor:crosshair}
+.sc-cell.skip canvas{opacity:.55}
+.sc-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;padding:10px;text-align:center}
+.sc-badge{position:absolute;left:6px;top:6px;font:650 11px var(--mono);padding:2px 6px;border-radius:5px;background:rgba(255,255,255,.92);border:1px solid var(--border)}
+.sc-badge:empty{display:none}
+.sc-inc{position:absolute;right:6px;top:6px;font-size:11px;background:rgba(255,255,255,.92);border-radius:5px;padding:1px 6px;display:flex;gap:4px;align-items:center;cursor:pointer}
+.sc-inc input{min-width:0;width:14px;height:14px;padding:0;accent-color:var(--teal)}
+.sc-tag{position:absolute;left:6px;bottom:24px;font:10.5px var(--sans);background:rgba(43,33,24,.82);color:#fff;padding:2px 6px;border-radius:4px}
+.sc-nm{position:absolute;left:6px;bottom:5px;font:10.5px var(--mono);color:var(--muted);background:rgba(255,255,255,.85);border-radius:4px;padding:0 4px}
+.sc-box{position:absolute;border:2px dashed var(--terracotta);background:rgba(244,133,49,.12);pointer-events:none}
+.sc-mark{position:absolute;border:2px solid var(--terracotta);pointer-events:none;border-radius:2px}
+.sc-empty{aspect-ratio:1/1;border:1px dashed var(--border);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+.de-good{color:#1f6f4a} .de-mid{color:#b06a00} .de-bad{color:#b03030}
+.sc-aim{position:absolute;right:6px;top:30px;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.92);font-size:14px;line-height:1;cursor:pointer;padding:0;color:var(--espresso)}
+.sc-aim:hover{border-color:var(--teal);color:var(--teal)}
+.sc-tag.bad{background:#b03030}
+.sc-mark.aim{border-style:dotted;border-color:var(--teal)}
+.sc-mark.region{border-style:dashed;border-color:rgba(60,126,112,.7)}
+.sc-inc input:disabled{opacity:.4}
+.sc-badge.de-good{border-color:#9fd3ba}.sc-badge.de-mid{border-color:#e7c38a}.sc-badge.de-bad{border-color:#e3a3a3}
 #labHost{min-height:200px} #labFrame{width:100%;height:calc(100vh - 170px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:#fff}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .mcell{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column}
@@ -383,6 +424,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <button id="mLog" class="hide">Activity</button>
     <button id="mModels" class="hide">Models</button>
     <button id="mLab" class="hide">3D Lab</button>
+    <button id="mSets" class="hide">Set colour</button>
     <button id="mOut" class="hide" title="Log out">Log out</button>
   </div>
 </header>
@@ -496,6 +538,21 @@ img.zoomable,#prodHead img{cursor:zoom-in}
     <div class="status" id="labStatus" style="margin-top:8px">The lab runs from Woodbun Assets/_tools/lab.html on this PC. Compress → Save release → Make USDZ.</div>
   </div>
   <div id="labHost"></div>
+</div>
+<div id="scArea" style="display:none">
+  <div class="card" style="padding:10px 14px">
+    <div class="row" style="align-items:flex-end">
+      <div class="f"><label>Set</label><select id="scSet" style="min-width:200px"><option value="">— choose a set —</option></select></div>
+      <div class="f"><label>Master piece</label><select id="scMaster" style="min-width:200px"></select></div>
+      <div class="f"><label>Rows</label><select id="scRows" style="min-width:170px"><option value="all">all views</option><option value="common">views every piece has</option></select></div>
+      <button class="small" id="scReload" title="Re-read the folders">↻ Reload</button>
+      <button class="small" id="scUndo" title="Put back the originals from the last save of this set">Undo last save</button>
+      <div style="flex:1"></div>
+      <button class="act good" id="scSave" disabled>Save corrected photos</button>
+    </div>
+    <div class="status" id="scStatus" style="margin-top:8px">Matches the photos of one set's pieces to a master piece. White background is protected; originals are backed up.</div>
+  </div>
+  <div id="scGrid" class="sc-grid"></div>
 </div>
 <div id="logArea" style="display:none">
   <div class="card">
@@ -711,7 +768,10 @@ const ROLE_HASHES={
       now says when it was approved and that its images are in Masters.
    Also: the per-slot "Reference" pictures (refs/<class>-NN.jpg) were never uploaded to
    the site and 404'd on every render; the block is gone. Orientation refs stay. */
-const APP_VERSION='v16.11';
+/* v16.12 (23 Sep 2026): Set colour — admin screen that matches the photos of the
+   pieces of one set (Sable bed, side table, dresser, wardrobe) to a master piece,
+   white background protected, originals backed up. See the SET COLOUR block. */
+const APP_VERSION='v16.12';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -749,7 +809,7 @@ function applyRole(r,who){
   $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
   $('mDims').classList.toggle('hide', !ADMIN);
   {const b=$('mLog'); if(b) b.classList.toggle('hide', !ADMIN);}
-  ['mModels','mLab'].forEach(id=>{const b=$(id); if(b) b.classList.toggle('hide', !ADMIN);});   // v16.0: admin only
+  ['mModels','mLab','mSets'].forEach(id=>{const b=$(id); if(b) b.classList.toggle('hide', !ADMIN);});   // v16.0: admin only (Set colour v16.12)
   document.querySelectorAll('.adminonly2').forEach(e=>e.style.display=ADMIN?'flex':'none');
   document.querySelectorAll('.staffonly,.staffonly2').forEach(e=>e.style.display=(ADMIN||STAFF)?'flex':'none');
   $('mOut').classList.remove('hide');
@@ -3780,11 +3840,623 @@ async function saveUsdz(m){
   MDL.items=null;
 }
 
+/* ================= SET COLOUR (v16.12, 23 Sep 2026) =================
+   Stage 2 of colour control: BETWEEN products of one set (Sable bed vs Sable side
+   table). Stage 1 — within one product — stays where it is (editor, then admin at
+   review). Stage 3 — between 3D models — lives in the lab.
+
+   How it works
+   - A "set" is every product whose id starts with the same word (sable-king,
+     sable-bedside, sable-dresser …). One piece is the MASTER; the others are
+     matched to it.
+   - Photos are paired by VIEW NAME from the filename (front with front, iso with
+     iso), not by slot number: the bed's 03 is iso, the side table's 03 is
+     front-open.
+   - A correction is per piece and applies to every photo of that piece. It is a
+     white-balance style gain in linear light (exposure / warmth / tint), plus
+     saturation, strength and selectivity:
+       * the white background is found (near-white connected to the image edge)
+         and is never touched, with a soft 2 px edge — no re-cut in Canva;
+       * with a colour sample, only pixels close to the sampled material's
+         chromaticity move ("selectivity"), so gold, chrome, black legs and grey
+         shadows stay as they are.
+   - Auto match finds each piece's main material in the same view (a colour
+     histogram peak, shadows and highlights trimmed) — no precise clicking.
+     Pick area lets you drag a box instead; the box is trimmed the same way, so
+     texture and shadow inside it do not matter.
+   - Save backs up every original master to Woodbun Assets/_backups/set-colour/
+     <stamp>/…, writes the corrected master (JPEG 97), rebuilds the 02_WEB copies
+     from it, and appends the settings to <pid>__<fab>__SETCOLOUR.json beside the
+     SHOOT.json. Undo last save puts the backed-up originals back. */
+const SC={sets:null,set:null,pieces:[],master:null,rows:[],pick:null,loadSeq:0,dirty:false};
+const SC_VIEW_ORDER=['lifestyle','front','iso','right','left','back','detail','iso-dims',
+  'front-open','right-open','right-open-dims','iso-nomattress','iso-hydraulic','detail-storage'];
+const SC_AUTO_VIEWS=['front','iso','right','left','back','detail'];
+/* per-photo ΔE badges only where two pieces show the same surfaces in the same light;
+   a back panel, a detail crop or a room photo of different furniture is not comparable */
+const SC_BADGE_VIEWS=['front','iso','right','left'];
+const SC_PREV=512;
+const SC_S2L=new Float32Array(256);
+for(let i=0;i<256;i++){ const c=i/255; SC_S2L[i]=c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
+const SC_L2S=new Uint8ClampedArray(4097);
+for(let i=0;i<=4096;i++){ const l=i/4096; SC_L2S[i]=Math.round(255*(l<=0.0031308?l*12.92:1.055*Math.pow(l,1/2.4)-0.055)); }
+function scL2S(l){ return SC_L2S[l<=0?0:(l>=1?4096:((l*4096+0.5)|0))]; }
+const SC_FILE_RE=/__(\d{2})__([a-z0-9-]+)(?:\.LOCKED)?\.(jpe?g|png|webp)$/i;
+
+/* ---- colour maths ---- */
+function scLab(lin){
+  const X=(0.4124*lin[0]+0.3576*lin[1]+0.1805*lin[2])/0.95047;
+  const Y=(0.2126*lin[0]+0.7152*lin[1]+0.0722*lin[2]);
+  const Z=(0.0193*lin[0]+0.1192*lin[1]+0.9505*lin[2])/1.08883;
+  const f=t=>t>216/24389?Math.cbrt(t):(24389/27*t+16)/116;
+  const fx=f(X),fy=f(Y),fz=f(Z);
+  return [116*fy-16,500*(fx-fy),200*(fy-fz)];
+}
+function scDE00(l1,l2){   // CIEDE2000
+  const [L1,a1,b1]=l1,[L2,a2,b2]=l2, rad=Math.PI/180;
+  const C1=Math.hypot(a1,b1),C2=Math.hypot(a2,b2),Cb=(C1+C2)/2;
+  const G=0.5*(1-Math.sqrt(Math.pow(Cb,7)/(Math.pow(Cb,7)+Math.pow(25,7))));
+  const a1p=(1+G)*a1,a2p=(1+G)*a2, C1p=Math.hypot(a1p,b1),C2p=Math.hypot(a2p,b2);
+  const h=(b,a)=>{ if(!b&&!a) return 0; let x=Math.atan2(b,a)/rad; return x<0?x+360:x; };
+  const h1p=h(b1,a1p),h2p=h(b2,a2p);
+  const dLp=L2-L1,dCp=C2p-C1p;
+  let dhp=0; if(C1p*C2p){ dhp=h2p-h1p; if(dhp>180) dhp-=360; else if(dhp<-180) dhp+=360; }
+  const dHp=2*Math.sqrt(C1p*C2p)*Math.sin(dhp*rad/2);
+  const Lbp=(L1+L2)/2, Cbp=(C1p+C2p)/2;
+  let hbp=h1p+h2p; if(C1p*C2p){ hbp=Math.abs(h1p-h2p)>180?(h1p+h2p+360)/2:(h1p+h2p)/2; if(hbp>=360) hbp-=360; }
+  const T=1-0.17*Math.cos((hbp-30)*rad)+0.24*Math.cos(2*hbp*rad)+0.32*Math.cos((3*hbp+6)*rad)-0.2*Math.cos((4*hbp-63)*rad);
+  const dTh=30*Math.exp(-Math.pow((hbp-275)/25,2));
+  const RC=2*Math.sqrt(Math.pow(Cbp,7)/(Math.pow(Cbp,7)+Math.pow(25,7)));
+  const SL=1+0.015*Math.pow(Lbp-50,2)/Math.sqrt(20+Math.pow(Lbp-50,2)), SC_=1+0.045*Cbp, SH=1+0.015*Cbp*T;
+  const RT=-Math.sin(2*dTh*rad)*RC;
+  return Math.sqrt(Math.pow(dLp/SL,2)+Math.pow(dCp/SC_,2)+Math.pow(dHp/SH,2)+RT*(dCp/SC_)*(dHp/SH));
+}
+function scDEClass(d){ return d==null?'':(d<2?'de-good':(d<5?'de-mid':'de-bad')); }
+function scGains(p){ const E=p.exp,W=p.warm/200,M=p.tint/200; return [Math.pow(2,E+W),Math.pow(2,E+M),Math.pow(2,E-W)]; }
+function scSigma(piece){ const s=piece.params.sel; if(s<=0) return Infinity; return 0.015*Math.pow(2,(100-s)/25); }
+function scIdentity(p){ return Math.abs(p.exp)<1e-4&&Math.abs(p.warm)<1e-3&&Math.abs(p.tint)<1e-3&&Math.abs(p.sat)<1e-3; }
+function scDefaults(){ return {exp:0,warm:0,tint:0,sat:0,k:100,sel:60}; }
+/* the whole transform for one linear colour, at weight w */
+function scXf(lin,g,s,w){
+  let r=lin[0]*g[0],gg=lin[1]*g[1],b=lin[2]*g[2];
+  if(s){ const Y=0.2126*r+0.7152*gg+0.0722*b; r=Y+(1+s)*(r-Y); gg=Y+(1+s)*(gg-Y); b=Y+(1+s)*(b-Y); }
+  return [lin[0]+w*(r-lin[0]),lin[1]+w*(gg-lin[1]),lin[2]+w*(b-lin[2])];
+}
+
+/* ---- image preparation (preview and full size share it) ---- */
+function scBoxBlur(a,w,h,r){          // separable running-sum box blur, in place
+  const tmp=new Float32Array(Math.max(w,h)); const n=2*r+1;
+  for(let y=0;y<h;y++){ const o=y*w; let s=0;
+    for(let x=-r;x<=r;x++) s+=a[o+Math.min(w-1,Math.max(0,x))];
+    for(let x=0;x<w;x++){ tmp[x]=s/n; s+=a[o+Math.min(w-1,x+r+1)]-a[o+Math.max(0,x-r)]; }
+    for(let x=0;x<w;x++) a[o+x]=tmp[x]; }
+  for(let x=0;x<w;x++){ let s=0;
+    for(let y=-r;y<=r;y++) s+=a[Math.min(h-1,Math.max(0,y))*w+x];
+    for(let y=0;y<h;y++){ tmp[y]=s/n; s+=a[Math.min(h-1,y+r+1)*w+x]-a[Math.max(0,y-r)*w+x]; }
+    for(let y=0;y<h;y++) a[y*w+x]=tmp[y]; }
+}
+/* near-white pixels connected to the image edge = background */
+function scBackground(px,w,h){
+  const n=w*h, nw=new Uint8Array(n), bg=new Uint8Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4){ const r=px[j],g=px[j+1],b=px[j+2]; const mn=Math.min(r,g,b),mx=Math.max(r,g,b); nw[i]=(mn>=245&&mx-mn<=6)?1:0; }
+  const st=new Int32Array(n); let sp=0;
+  const push=i=>{ if(nw[i]&&!bg[i]){ bg[i]=1; st[sp++]=i; } };
+  for(let x=0;x<w;x++){ push(x); push((h-1)*w+x); }
+  for(let y=0;y<h;y++){ push(y*w); push(y*w+w-1); }
+  while(sp){ const i=st[--sp], x=i%w;
+    if(x>0) push(i-1); if(x<w-1) push(i+1); if(i>=w) push(i-w); if(i<n-w) push(i+w); }
+  return bg;
+}
+/* pw: product weight 0..1 (feathered), cu/cv: blurred chromaticity r/(r+g+b), g/(r+g+b) */
+function scPrep(px,w,h,blurR){
+  const n=w*h, bg=scBackground(px,w,h);
+  const pw=new Float32Array(n); let bgc=0;
+  for(let i=0;i<n;i++){ pw[i]=bg[i]?0:1; bgc+=bg[i]; }
+  scBoxBlur(pw,w,h,blurR); scBoxBlur(pw,w,h,blurR);
+  for(let i=0;i<n;i++) if(bg[i]) pw[i]=0;       // the soft edge ramps INSIDE the piece only: background pixels never change
+  const R=new Float32Array(n),G=new Float32Array(n),B=new Float32Array(n);
+  for(let i=0,j=0;i<n;i++,j+=4){ R[i]=SC_S2L[px[j]]; G[i]=SC_S2L[px[j+1]]; B[i]=SC_S2L[px[j+2]]; }
+  scBoxBlur(R,w,h,blurR); scBoxBlur(G,w,h,blurR); scBoxBlur(B,w,h,blurR);
+  const cu=new Float32Array(n),cv=new Float32Array(n);
+  for(let i=0;i<n;i++){ const s=R[i]+G[i]+B[i]; if(s>1e-6){ cu[i]=R[i]/s; cv[i]=G[i]/s; } else { cu[i]=cv[i]=1/3; } }
+  return {pw,cu,cv,bgShare:bgc/n};
+}
+/* apply one piece's settings to RGBA pixels (src -> dst) */
+/* aim (optional, one photo): {cS:[u,v]} re-centres selectivity on this photo's own
+   material; {rect,w} also limits the change to a soft-edged rectangle (room photos,
+   where the walls are often the same colour as the piece) */
+function scApply(src,dst,prep,piece,original,aim){
+  const n=src.length>>2, p=piece.params, g=scGains(p), s=p.sat/100, k=p.k/100;
+  const cS=(aim&&aim.cS)||(piece.sample?piece.sample.cS:null);
+  const R=aim&&aim.rect, W=aim&&aim.w, F=R?Math.max(2,0.02*W):1;
+  const sig=cS?scSigma(piece):Infinity, inv=(sig===Infinity)?0:1/(sig*sig);
+  const skip=original||scIdentity(p)||k<=0;
+  for(let i=0,j=0;i<n;i++,j+=4){
+    dst[j+3]=src[j+3];
+    let w=skip?0:prep.pw[i]*k;
+    if(w>0&&R){ const x=i%W, y=(i/W)|0; const d=Math.min(x-R.x0,R.x1-x,y-R.y0,R.y1-y); w*=d<=-F/2?0:(d>=F/2?1:(d/F+0.5)); }
+    if(w>0&&inv){ const du=prep.cu[i]-cS[0], dv=prep.cv[i]-cS[1], dw=du+dv; w*=Math.exp(-(du*du+dv*dv+dw*dw)*inv); }
+    if(w<0.002){ dst[j]=src[j]; dst[j+1]=src[j+1]; dst[j+2]=src[j+2]; continue; }
+    const r0=SC_S2L[src[j]],g0=SC_S2L[src[j+1]],b0=SC_S2L[src[j+2]];
+    let r=r0*g[0],gg=g0*g[1],b=b0*g[2];
+    if(s){ const Y=0.2126*r+0.7152*gg+0.0722*b; r=Y+(1+s)*(r-Y); gg=Y+(1+s)*(gg-Y); b=Y+(1+s)*(b-Y); }
+    dst[j]=scL2S(r0+w*(r-r0)); dst[j+1]=scL2S(g0+w*(gg-g0)); dst[j+2]=scL2S(b0+w*(b-b0));
+  }
+}
+/* median linear colour of product pixels, luminance-trimmed (texture and shadow proof) */
+function scMedianColour(px,prep,idx,lo,hi){
+  const Ys=[];
+  for(const i of idx){ const j=i*4; Ys.push(0.2126*SC_S2L[px[j]]+0.7152*SC_S2L[px[j+1]]+0.0722*SC_S2L[px[j+2]]); }
+  if(Ys.length<20) return null;
+  const sorted=Ys.slice().sort((a,b)=>a-b);
+  const yl=sorted[Math.floor(sorted.length*lo)], yh=sorted[Math.min(sorted.length-1,Math.floor(sorted.length*hi))];
+  const ch=[[],[],[]];
+  idx.forEach((i,t)=>{ if(Ys[t]<yl||Ys[t]>yh) return; const j=i*4; ch[0].push(SC_S2L[px[j]]); ch[1].push(SC_S2L[px[j+1]]); ch[2].push(SC_S2L[px[j+2]]); });
+  if(ch[0].length<10) return null;
+  const med=a=>{ a.sort((x,y)=>x-y); return a[a.length>>1]; };
+  return [med(ch[0]),med(ch[1]),med(ch[2])];
+}
+function scBoxSample(cell,box){
+  const {w}=cell, px=cell.src, idx=[];
+  const x0=Math.max(0,Math.min(box.x0,box.x1)|0), x1=Math.min(cell.w-1,Math.max(box.x0,box.x1)|0);
+  const y0=Math.max(0,Math.min(box.y0,box.y1)|0), y1=Math.min(cell.h-1,Math.max(box.y0,box.y1)|0);
+  for(let y=y0;y<=y1;y++) for(let x=x0;x<=x1;x++){ const i=y*w+x; if(cell.prep.pw[i]>0.5) idx.push(i); }
+  return scMedianColour(px,cell.prep,idx,0.15,0.85);
+}
+/* the main material: peak of the chromaticity histogram of product pixels */
+function scDominant(cell,px){
+  px=px||cell.src; const {prep}=cell, n=cell.w*cell.h;
+  const idx=[], Ys=[];
+  for(let i=0;i<n;i++){ if(prep.pw[i]<0.9) continue; const j=i*4; idx.push(i); Ys.push(0.2126*SC_S2L[px[j]]+0.7152*SC_S2L[px[j+1]]+0.0722*SC_S2L[px[j+2]]); }
+  if(idx.length<200) return null;
+  const so=Ys.slice().sort((a,b)=>a-b), yl=so[Math.floor(so.length*0.10)], yh=so[Math.floor(so.length*0.95)];
+  const BIN=0.006, U0=0.15, V0=0.15, NU=80, NV=60, H=new Float32Array(NU*NV);
+  const cuv=[];
+  idx.forEach((i,t)=>{ if(Ys[t]<yl||Ys[t]>yh) return; const j=i*4;
+    const r=SC_S2L[px[j]],g=SC_S2L[px[j+1]],b=SC_S2L[px[j+2]],s=r+g+b; if(s<1e-5) return;
+    const u=r/s,v=g/s; cuv.push([i,u,v]);
+    const bu=Math.floor((u-U0)/BIN), bv=Math.floor((v-V0)/BIN);
+    if(bu>=0&&bu<NU&&bv>=0&&bv<NV) H[bu*NV+bv]++; });
+  let best=-1,bi=0;
+  for(let a=1;a<NU-1;a++) for(let b=1;b<NV-1;b++){
+    let s=0; for(let da=-1;da<=1;da++) for(let db=-1;db<=1;db++) s+=H[(a+da)*NV+b+db];
+    if(s>best){ best=s; bi=a*NV+b; } }
+  const pu=U0+(Math.floor(bi/NV)+0.5)*BIN, pv=V0+(bi%NV+0.5)*BIN;
+  const sel=cuv.filter(e=>Math.hypot(e[1]-pu,e[2]-pv)<0.02).map(e=>e[0]);
+  const lin=scMedianColour(px,prep,sel,0,1);
+  return lin?{lin,idx:sel}:null;
+}
+
+/* ---- sets and files ---- */
+async function scIndex(force){
+  if(SC.sets&&!force) return SC.sets;
+  const items=await modelsIndex(!!force);
+  const fam={};
+  for(const it of items){ const f=it.pid.split('-')[0]; (fam[f]=fam[f]||[]).push(it); }
+  SC.sets=Object.keys(fam).filter(k=>fam[k].length>1).sort().map(k=>({name:k,items:fam[k].slice().sort((a,b)=>a.cls.localeCompare(b.cls)||a.pid.localeCompare(b.pid))}));
+  return SC.sets;
+}
+async function scPieceFiles(piece){
+  const out={};
+  const md=await dirFor(S.masters,[piece.cls,piece.pid,piece.fab]);
+  let wd=null; try{ wd=await dirFor(await webRoot(false),[piece.cls,piece.pid,piece.fab]); }catch(e){}
+  const web={}; if(wd) for(const f of await listFiles(wd)) web[f.name]=f.handle;
+  for(const f of await listFiles(md)){
+    const m=SC_FILE_RE.exec(f.name); if(!m) continue;
+    const view=m[2].toLowerCase();
+    if(out[view]) continue;
+    const webName=unlockedName(f.name).replace(/\.(jpe?g|png|webp)$/i,'.jpg');
+    out[view]={slot:m[1],view:view,name:f.name,master:f.handle,web:web[webName]||null,include:true};
+  }
+  return out;
+}
+function scRowsFor(pieces,mode){
+  const all=new Set(); pieces.forEach(p=>Object.keys(p.files).forEach(v=>all.add(v)));
+  let rows=[...all].sort((a,b)=>{ const ia=SC_VIEW_ORDER.indexOf(a), ib=SC_VIEW_ORDER.indexOf(b);
+    return (ia<0?99:ia)-(ib<0?99:ib)||a.localeCompare(b); });
+  if(mode==='common') rows=rows.filter(v=>pieces.every(p=>p.files[v]));
+  return rows;
+}
+async function scLoadCell(piece,view){
+  const f=piece.files[view]; if(!f) return null;
+  const file=await (f.web||f.master).getFile();
+  const bmp=await createImageBitmap(file);
+  const sc=Math.min(1,SC_PREV/Math.max(bmp.width,bmp.height));
+  const w=Math.max(1,Math.round(bmp.width*sc)), h=Math.max(1,Math.round(bmp.height*sc));
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const cx=cv.getContext('2d',{willReadFrequently:true}); cx.imageSmoothingQuality='high'; cx.drawImage(bmp,0,0,w,h); if(bmp.close) bmp.close();
+  const img=cx.getImageData(0,0,w,h);
+  const src=new Uint8ClampedArray(img.data);
+  const prep=scPrep(src,w,h,1);
+  const nobg=prep.bgShare<0.05;
+  return {piece,view,w,h,canvas:cv,ctx:cx,img,src,prep,room:nobg&&view==='lifestyle',nobg:nobg&&view!=='lifestyle',aim:null,el:null,de:null};
+}
+
+/* ---- screen ---- */
+function scSay(t,bad){ const s=$('scStatus'); if(!s) return; s.className='status'+(bad?' err':''); s.innerHTML=t; }
+async function scOpen(){
+  if(!S.assets||!S.masters){ scSay('Choose the “Woodbun Assets” root and the 01_MASTERS folder first (folder row above).',true); return; }
+  const sel=$('scSet');
+  if(!SC.sets){ scSay('Reading the masters…'); }
+  let sets; try{ sets=await scIndex(false); }catch(e){ wbFail('Set colour: could not read the masters',e); return; }
+  if(sel.dataset.n!==String(sets.length)){
+    sel.innerHTML='<option value="">— choose a set —</option>'+sets.map(s=>'<option value="'+esc(s.name)+'">'+esc(s.name)+' ('+s.items.length+' pieces)</option>').join('');
+    sel.dataset.n=String(sets.length); }
+  if(!SC.set) scSay('Choose a set. One piece is the master; the others are matched to it. Photos pair up by view (front with front).');
+}
+async function scLoadSet(name){
+  const seq=++SC.loadSeq;
+  const set=(SC.sets||[]).find(s=>s.name===name); SC.set=set||null; SC.pieces=[]; SC.master=null; SC.pick=null; SC.dirty=false;
+  $('scGrid').innerHTML=''; $('scSave').disabled=true; $('scMaster').innerHTML='';
+  if(!set) return;
+  scSay('Loading '+esc(name)+'…');
+  const pieces=[];
+  for(const it of set.items){
+    const fab=it.fabs.includes('default')?'default':it.fabs[0];
+    const piece={cls:it.cls,pid:it.pid,fabs:it.fabs,fab,files:{},cells:{},params:scDefaults(),sample:null,dE0:null,dE1:null,orig:false};
+    try{ piece.files=await scPieceFiles(piece); }catch(e){ piece.err=e.message; }
+    pieces.push(piece);
+  }
+  if(seq!==SC.loadSeq) return;
+  SC.pieces=pieces;
+  /* default master: the piece whose main material the others agree with most is not
+     knowable yet — take the bed if there is one, else the first piece */
+  SC.master=pieces.find(p=>p.cls==='bed')||pieces.find(p=>p.cls==='sofa')||pieces[0];
+  $('scMaster').innerHTML=pieces.map(p=>'<option value="'+esc(p.pid)+'"'+(p===SC.master?' selected':'')+'>'+esc(p.pid)+'</option>').join('');
+  await scBuild(seq);
+}
+async function scBuild(seq){
+  seq=seq||SC.loadSeq;
+  const G=$('scGrid'); G.innerHTML='';
+  const ps=SC.pieces; if(!ps.length) return;
+  SC.rows=scRowsFor(ps,$('scRows').value);
+  G.style.gridTemplateColumns='92px repeat('+ps.length+',minmax(220px,1fr))';
+  G.appendChild(Object.assign(document.createElement('div'),{className:'sc-corner'}));
+  ps.forEach(p=>{ const h=document.createElement('div'); h.className='sc-hd'+(p===SC.master?' master':''); p.hd=h; G.appendChild(h); scHead(p); });
+  let loaded=0, total=0; SC.rows.forEach(v=>ps.forEach(p=>{ if(p.files[v]) total++; }));
+  scSay('Loading '+total+' photos…');
+  for(const v of SC.rows){
+    const lab=document.createElement('div'); lab.className='sc-rowlab'; lab.textContent=v; G.appendChild(lab);
+    for(const p of ps){
+      const holder=document.createElement('div');
+      if(!p.files[v]){ holder.className='sc-empty'; holder.textContent='no '+v; G.appendChild(holder); continue; }
+      holder.className='sc-cell'; holder.innerHTML='<div class="sc-load">…</div>'; G.appendChild(holder);
+      let cell=null;
+      try{ cell=await scLoadCell(p,v); }catch(e){ holder.innerHTML='<div class="sc-load">could not read '+esc(p.files[v].name)+'</div>'; }
+      if(seq!==SC.loadSeq) return;
+      if(!cell) continue;
+      p.cells[v]=cell; cell.el=holder; scMountCell(cell);
+      loaded++; if(loaded%6===0){ scSay('Loading photos… '+loaded+' / '+total); await new Promise(r=>setTimeout(r,0)); }
+    }
+  }
+  for(const p of ps){ scRender(p); }
+  scAllDE();
+  scSay('Ready. Master: <b>'+esc(SC.master.pid)+'</b>. For each other piece press <b>Auto match</b>, or <b>Pick area</b> to choose the material yourself; fine-tune with the sliders. The badge on each photo is the colour gap to the master’s photo of the same view (ΔE: under 2 matches, 2–5 visible, over 5 clearly different).');
+}
+function scCtl(p,key,label,min,max,step){
+  return '<div class="sc-ctl"><span>'+label+'</span><input type="range" data-k="'+key+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+p.params[key]+'"><input type="number" data-k="'+key+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+p.params[key]+'"></div>';
+}
+function scHead(p){
+  const h=p.hd; if(!h) return;
+  const fabSel=p.fabs.length>1?'<select class="small" data-a="fab">'+p.fabs.map(f=>'<option'+(f===p.fab?' selected':'')+'>'+esc(f)+'</option>').join('')+'</select>':'<span class="sc-fab">'+esc(p.fab)+'</span>';
+  if(p===SC.master){
+    h.innerHTML='<div class="sc-pid">'+esc(p.pid)+'</div><div class="sc-sub">'+esc(p.cls)+' · '+fabSel+'</div>'+
+      '<div class="sc-mbadge">MASTER — the others match this</div>'+
+      '<div class="hint" style="margin-top:6px">Its photos are never changed here. If the master itself looks wrong, choose another master.</div>';
+  } else {
+    const de=(p.dE0!=null)?'<div class="sc-de">Main material vs master: <b class="'+scDEClass(p.dE0)+'">ΔE '+p.dE0.toFixed(1)+'</b> → <b class="'+scDEClass(p.dE1)+'">'+(p.dE1!=null?p.dE1.toFixed(1):'—')+'</b>'+(p.sample?' <span class="hint">('+(p.sample.how==='pick'?'picked':'auto')+', '+esc(p.sample.view)+')</span>':'')+'</div>':'<div class="sc-de hint">No match yet.</div>';
+    h.innerHTML='<div class="sc-pid">'+esc(p.pid)+'</div><div class="sc-sub">'+esc(p.cls)+' · '+fabSel+'</div>'+de+
+      '<div class="sc-btns"><button class="small" data-a="auto">Auto match</button><button class="small" data-a="pick">Pick area</button><button class="small" data-a="orig" title="Hold to see the photos as they are now">Hold: before</button><button class="small" data-a="reset">Reset</button></div>'+
+      scCtl(p,'k','strength %',0,150,1)+scCtl(p,'exp','exposure',-1.5,1.5,0.01)+scCtl(p,'warm','warmth',-100,100,0.5)+
+      scCtl(p,'tint','tint (g/m)',-100,100,0.5)+scCtl(p,'sat','saturation',-100,100,1)+
+      scCtl(p,'sel','selectivity',0,100,1)+
+      '<div class="hint sc-selnote">'+(p.sample?'selectivity: 0 = whole piece, higher = only the matched material (gold and chrome stay put)':'selectivity works after Auto match or Pick area; until then the whole piece moves (background always protected)')+'</div>';
+  }
+  h.querySelectorAll('input[data-k]').forEach(inp=>{
+    inp.addEventListener('input',()=>{ const k=inp.dataset.k, v=parseFloat(inp.value); if(!isFinite(v)) return;
+      p.params[k]=v; h.querySelectorAll('input[data-k="'+k+'"]').forEach(o=>{ if(o!==inp) o.value=v; });
+      scChanged(p); });
+  });
+  const b=a=>h.querySelector('[data-a="'+a+'"]');
+  if(b('fab')) b('fab').onchange=async e=>{ p.fab=e.target.value; p.params=scDefaults(); p.sample=null; p.dE0=p.dE1=null; p.cells={};
+    try{ p.files=await scPieceFiles(p); }catch(err){ wbFail('Set colour',err); } await scBuild(); };
+  if(b('auto')) b('auto').onclick=()=>scAuto(p);
+  if(b('pick')) b('pick').onclick=()=>scStartPick(p);
+  if(b('reset')) b('reset').onclick=()=>{ p.params=scDefaults(); p.sample=null; p.dE0=p.dE1=null; p.marks=null; Object.values(p.cells).forEach(c=>c.aim=null); scHead(p); scChanged(p); scMarks(); };
+  if(b('orig')){ const on=()=>{ p.orig=true; scRender(p); }, off=()=>{ if(p.orig){ p.orig=false; scRender(p); } };
+    b('orig').addEventListener('pointerdown',on); ['pointerup','pointerleave','pointercancel'].forEach(ev=>b('orig').addEventListener(ev,off)); }
+}
+function scMountCell(cell){
+  const el=cell.el; el.innerHTML=''; el.appendChild(cell.canvas);
+  const inc=document.createElement('label'); inc.className='sc-inc';
+  const f=cell.piece.files[cell.view];
+  if(cell.room&&!(cell.aim&&cell.aim.rect)) f.include=false;
+  inc.innerHTML='<input type="checkbox"'+(f.include?' checked':'')+(cell.room&&!(cell.aim&&cell.aim.rect)?' disabled':'')+'> save';
+  inc.title='Include this photo when saving this piece';
+  if(cell.piece===SC.master) inc.style.display='none';
+  inc.querySelector('input').onchange=e=>{ f.include=e.target.checked; el.classList.toggle('skip',!f.include); scDirtyCheck(); };
+  el.appendChild(inc); el.classList.toggle('skip',!f.include&&cell.piece!==SC.master);
+  const badge=document.createElement('div'); badge.className='sc-badge'; el.appendChild(badge); cell.badge=badge;
+  if(cell.room){ const t=document.createElement('div'); t.className='sc-tag'; t.textContent='room photo — press ◎ to include it (walls stay safe)'; el.appendChild(t); }
+  if(cell.nobg){ const t=document.createElement('div'); t.className='sc-tag bad'; t.textContent='no white background — not cut out?'; el.appendChild(t); }
+  if(cell.piece!==SC.master){ const a=document.createElement('button'); a.className='sc-aim'; a.type='button'; a.textContent='◎';
+    a.title='Aim at the piece in THIS photo: drag a box over its material here. Use it on room photos, where the light changes the colour.';
+    a.onclick=ev=>{ ev.stopPropagation(); scStartAim(cell); }; el.appendChild(a); }
+  const nm=document.createElement('div'); nm.className='sc-nm'; nm.textContent=f.slot+' · '+f.name.replace(/^.*__\d{2}__/,''); el.appendChild(nm);
+  cell.canvas.addEventListener('pointerdown',e=>scPointerDown(cell,e));
+  cell.canvas.addEventListener('dblclick',()=>{ try{ lightbox(cell.canvas.toDataURL('image/jpeg',0.92),cell.piece.pid+' · '+cell.view+' (preview)',''); }catch(_){} });
+}
+/* the aim of one cell, expressed for an image of width W (preview or full size) */
+function scAimFor(c,W){
+  if(!c||!c.aim) return null;
+  const f=W/c.w, r=c.aim.rect;
+  return {cS:c.aim.cS, rect:r?{x0:Math.min(r.x0,r.x1)*f,x1:Math.max(r.x0,r.x1)*f,y0:Math.min(r.y0,r.y1)*f,y1:Math.max(r.y0,r.y1)*f}:null, w:W};
+}
+let SC_RAF={};
+function scChanged(p){
+  if(SC_RAF[p.pid]) return;
+  SC_RAF[p.pid]=requestAnimationFrame(()=>{ SC_RAF[p.pid]=0; scRender(p); scUpdateDE(p); scDEDebounced(); scDirtyCheck(); });
+}
+function scRender(p){
+  for(const v in p.cells){ const c=p.cells[v];
+    scApply(c.src,c.img.data,c.prep,p,p.orig||p===SC.master||(c.room&&!(c.aim&&c.aim.rect)),scAimFor(c,c.w)); c.ctx.putImageData(c.img,0,0); }
+}
+function scUpdateDE(p){
+  if(!p.sample){ p.dE1=null; scHeadDE(p); return; }
+  const w=p.params.k/100, after=scXf(p.sample.S,scGains(p.params),p.params.sat/100,w);
+  p.dE1=scDE00(scLab(after),scLab(p.sample.T)); scHeadDE(p);
+}
+function scHeadDE(p){ const el=p.hd&&p.hd.querySelector('.sc-de'); if(!el||p.dE0==null) return;
+  const bs=el.querySelectorAll('b'); if(bs[1]){ bs[1].className=scDEClass(p.dE1); bs[1].textContent=p.dE1!=null?p.dE1.toFixed(1):'—'; } }
+let SC_DE_T=0;
+function scDEDebounced(){ clearTimeout(SC_DE_T); SC_DE_T=setTimeout(scAllDE,300); }
+/* per-photo badge: main material of this photo (after correction) vs the master's photo of the same view */
+function scAllDE(){
+  const M=SC.master; if(!M) return;
+  for(const v of SC.rows){
+    if(SC_BADGE_VIEWS.indexOf(v)<0) continue;
+    const mc=M.cells[v]; const md=(mc&&!mc.nobg)?scDominant(mc):null; const mlab=md?scLab(md.lin):null;
+    if(mc&&mc.badge){ mc.badge.className='sc-badge'; mc.badge.textContent='master'; }
+    for(const p of SC.pieces){ if(p===M) continue; const c=p.cells[v]; if(!c||!c.badge) continue;
+      if(!mlab||c.nobg){ c.badge.textContent=''; c.badge.style.display='none'; continue; }
+      const d=scDominant(c,c.img.data); if(!d){ c.badge.style.display='none'; continue; }
+      const de=scDE00(scLab(d.lin),mlab); c.badge.style.display='';
+      c.badge.className='sc-badge '+scDEClass(de); c.badge.textContent='ΔE '+de.toFixed(1); }
+  }
+}
+function scSolve(p,S,T,how,view){
+  const lg=[0,1,2].map(i=>Math.log2(Math.max(1e-5,T[i])/Math.max(1e-5,S[i])));
+  const E=(lg[0]+lg[2])/2, W=(lg[0]-lg[2])/2, M=lg[1]-E;
+  const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const sum=S[0]+S[1]+S[2];
+  p.sample={S,T,cS:[S[0]/sum,S[1]/sum],how,view};
+  p.params.exp=+cl(E,-1.5,1.5).toFixed(3); p.params.warm=+cl(W*200,-100,100).toFixed(1); p.params.tint=+cl(M*200,-100,100).toFixed(1);
+  p.params.sat=0; p.params.k=100; if(!(p.params.sel>0)) p.params.sel=60;
+  p.dE0=scDE00(scLab(S),scLab(T));
+  scHead(p); scRender(p); scUpdateDE(p); scAllDE(); scDirtyCheck(); scMarks();
+}
+function scAuto(p){
+  const M=SC.master;
+  const view=SC_AUTO_VIEWS.find(v=>p.cells[v]&&M.cells[v])||Object.keys(p.cells).find(v=>M.cells[v]&&!p.cells[v].room);
+  if(!view){ scSay('Auto match needs one view both pieces have (front, iso, right, left, back or detail). Use Pick area instead.',true); return; }
+  const a=scDominant(p.cells[view]), b=scDominant(M.cells[view]);
+  if(!a||!b){ scSay('Could not find a main material in the '+esc(view)+' photos. Use Pick area.',true); return; }
+  scSolve(p,a.lin,b.lin,'auto',view);
+  scFlash(p.cells[view],a.idx); scFlash(M.cells[view],b.idx);
+  scSay('Auto match on the <b>'+esc(view)+'</b> photos: the highlighted pixels are what was compared. If it grabbed the wrong material (a bedsheet, a mirror), use <b>Pick area</b> instead.');
+}
+function scFlash(cell,idx){
+  const d=new Uint8ClampedArray(cell.img.data);
+  for(const i of idx){ const j=i*4; d[j]=d[j]*0.35+0*0.65; d[j+1]=d[j+1]*0.35+170*0.65; d[j+2]=d[j+2]*0.35+190*0.65; }
+  cell.ctx.putImageData(new ImageData(d,cell.w,cell.h),0,0);
+  setTimeout(()=>{ cell.ctx.putImageData(cell.img,0,0); },1400);
+}
+/* ---- pick area: a box on the piece, then a box on the master ---- */
+function scStartPick(p){
+  SC.pick={piece:p,step:1,box:null,view:null};
+  document.querySelectorAll('.sc-cell.target').forEach(e=>e.classList.remove('target'));
+  Object.values(p.cells).forEach(c=>c.el.classList.add('target'));
+  scSay('<b>Pick area — step 1 of 2.</b> Drag a box on any <b>'+esc(p.pid)+'</b> photo over its main material (a flat panel; avoid handles, gold, mirrors). Texture and shadow inside the box are fine. Esc cancels.');
+}
+function scStartAim(cell){
+  SC.pick={aim:cell,piece:cell.piece,step:1,room:cell.room};
+  document.querySelectorAll('.sc-cell.target').forEach(e=>e.classList.remove('target'));
+  cell.el.classList.add('target');
+  scSay('<b>Aim'+(cell.room?' — step 1 of 2':'')+'</b> — drag a box over <b>'+esc(cell.piece.pid)+'</b>’s material in this '+esc(cell.view)+' photo (a flat panel). The colour change stays the piece’s; this only tells the photo where the piece’s material is. Esc cancels.');
+}
+function scPointerDown(cell,e){
+  const pk=SC.pick; if(!pk) return;
+  if(pk.aim&&cell!==pk.aim) return;
+  const want=(pk.aim||pk.step===1)?pk.piece:SC.master;
+  if(cell.piece!==want) return;
+  if(pk.step===2&&pk.view&&!SC.master.cells[pk.view]){}   // any master view accepted
+  e.preventDefault();
+  const r=cell.canvas.getBoundingClientRect(), sx=cell.w/r.width, sy=cell.h/r.height;
+  const x0=(e.clientX-r.left)*sx, y0=(e.clientY-r.top)*sy;
+  const band=document.createElement('div'); band.className='sc-box'; cell.el.appendChild(band);
+  const draw=(x1,y1)=>{ const L=Math.min(x0,x1)/sx, T=Math.min(y0,y1)/sy, W=Math.abs(x1-x0)/sx, H=Math.abs(y1-y0)/sy;
+    band.style.left=(L+cell.canvas.offsetLeft)+'px'; band.style.top=(T+cell.canvas.offsetTop)+'px'; band.style.width=W+'px'; band.style.height=H+'px'; };
+  let x1=x0,y1=y0; draw(x1,y1);
+  const mv=ev=>{ x1=(ev.clientX-r.left)*sx; y1=(ev.clientY-r.top)*sy; draw(x1,y1); };
+  const up=()=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); band.remove();
+    const box={x0,y0,x1,y1};
+    if(Math.abs(x1-x0)<6||Math.abs(y1-y0)<6){ scSay('That box is too small — drag a bigger one over a flat part of the material.',true); return; }
+    const col=(pk.aim&&pk.step===2)?[1,1,1]:scBoxSample(cell,box);
+    if(!col){ scSay('No product pixels in that box (it was all background). Try again.',true); return; }
+    if(pk.aim&&pk.step===2){   // room photo: the region the change may touch
+      cell.aim.rect={x0,y0,x1,y1}; cell.el.classList.remove('target'); SC.pick=null;
+      const f=cell.piece.files[cell.view]; f.include=true; const cb=cell.el.querySelector('.sc-inc input'); if(cb){ cb.disabled=false; cb.checked=true; } cell.el.classList.remove('skip');
+      scRender(cell.piece); scMarks(); scDEDebounced(); scDirtyCheck();
+      scSay('Room photo aimed: only the piece inside the second box changes; walls and floor outside it stay as they are. It will be saved with the piece.');
+      return;
+    }
+    if(pk.aim){
+      const sum=col[0]+col[1]+col[2]; cell.aim={cS:[col[0]/sum,col[1]/sum],box,rect:null};
+      if(pk.room){ pk.step=2; scSay('<b>Aim — step 2 of 2.</b> Now drag a box around the <b>whole piece</b> in this room photo. Nothing outside this box will change — that keeps same-coloured walls safe.'); return; }
+      cell.el.classList.remove('target'); SC.pick=null;
+      scRender(cell.piece); scMarks(); scDEDebounced();
+      scSay('This photo now aims at the boxed material. If nothing moved, the piece has no match yet — press <b>Auto match</b> or <b>Pick area</b> in its column first.');
+      return;
+    }
+    if(pk.step===1){
+      pk.box=box; pk.view=cell.view; pk.S=col; pk.cellA=cell; pk.step=2;
+      document.querySelectorAll('.sc-cell.target').forEach(el=>el.classList.remove('target'));
+      Object.values(SC.master.cells).forEach(c=>c.el.classList.add('target'));
+      if(SC.master.cells[cell.view]) SC.master.cells[cell.view].el.scrollIntoView({block:'nearest',inline:'nearest'});
+      scSay('<b>Pick area — step 2 of 2.</b> Now drag a box over the <b>same material</b> on the master (<b>'+esc(SC.master.pid)+'</b>) — the '+esc(cell.view)+' photo in the same row is best.');
+    } else {
+      document.querySelectorAll('.sc-cell.target').forEach(el=>el.classList.remove('target'));
+      const p=pk.piece; p.marks={a:{view:pk.view,box:pk.box},b:{view:cell.view,box}};
+      SC.pick=null; scSolve(p,pk.S,col,'pick',pk.view+' / '+cell.view);
+      scSay('Matched <b>'+esc(p.pid)+'</b> to the master from the two boxes. Fine-tune with the sliders; <b>Hold: before</b> shows the photos as they are now.');
+    }
+  };
+  window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+}
+function scMarks(){
+  document.querySelectorAll('.sc-mark').forEach(e=>e.remove());
+  for(const p of SC.pieces){ if(!p.marks||!p.sample||p.sample.how!=='pick') continue;
+    const put=(piece,m)=>{ const c=piece.cells[m.view]; if(!c) return; const r=c.canvas; const d=document.createElement('div'); d.className='sc-mark';
+      const k=r.clientWidth/c.w; d.style.left=(Math.min(m.box.x0,m.box.x1)*k+r.offsetLeft)+'px'; d.style.top=(Math.min(m.box.y0,m.box.y1)*k+r.offsetTop)+'px';
+      d.style.width=Math.abs(m.box.x1-m.box.x0)*k+'px'; d.style.height=Math.abs(m.box.y1-m.box.y0)*k+'px'; c.el.appendChild(d); };
+    put(p,p.marks.a); put(SC.master,p.marks.b); }
+  for(const p of SC.pieces) for(const v in p.cells){ const c=p.cells[v]; if(c.aim) { const r=c.canvas, k=r.clientWidth/c.w, m=c.aim.box, d=document.createElement('div');
+    d.className='sc-mark aim'; d.style.left=(Math.min(m.x0,m.x1)*k+r.offsetLeft)+'px'; d.style.top=(Math.min(m.y0,m.y1)*k+r.offsetTop)+'px';
+    d.style.width=Math.abs(m.x1-m.x0)*k+'px'; d.style.height=Math.abs(m.y1-m.y0)*k+'px'; c.el.appendChild(d);
+    const g=c.aim.rect; if(g){ const e=document.createElement('div'); e.className='sc-mark region';
+      e.style.left=(Math.min(g.x0,g.x1)*k+r.offsetLeft)+'px'; e.style.top=(Math.min(g.y0,g.y1)*k+r.offsetTop)+'px';
+      e.style.width=Math.abs(g.x1-g.x0)*k+'px'; e.style.height=Math.abs(g.y1-g.y0)*k+'px'; c.el.appendChild(e); } } }
+}
+function scDirtyCheck(){
+  const todo=SC.pieces.filter(p=>p!==SC.master&&!scIdentity(p.params)&&p.params.k>0&&Object.values(p.files).some(f=>f.include));
+  SC.dirty=todo.length>0;
+  const b=$('scSave'); b.disabled=!todo.length;
+  b.textContent=todo.length?'Save corrected photos ('+todo.map(p=>p.pid).join(', ')+')':'Save corrected photos';
+  return todo;
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&SC.pick){ SC.pick=null; document.querySelectorAll('.sc-cell.target').forEach(el=>el.classList.remove('target')); scSay('Pick cancelled.'); } });
+window.addEventListener('resize',()=>{ if(S.mode==='sets') scMarks(); });
+
+/* ---- save: full-size masters, then web copies ---- */
+async function scProcessFull(file,piece,cell){
+  const bmp=await createImageBitmap(file);
+  const w=bmp.width,h=bmp.height, aim=scAimFor(cell,w);
+  const cv=(typeof OffscreenCanvas!=='undefined')?new OffscreenCanvas(w,h):Object.assign(document.createElement('canvas'),{width:w,height:h});
+  const cx=cv.getContext('2d',{willReadFrequently:true}); cx.drawImage(bmp,0,0); if(bmp.close) bmp.close();
+  const img=cx.getImageData(0,0,w,h), src=new Uint8ClampedArray(img.data);
+  const prep=scPrep(src,w,h,Math.max(1,Math.round(Math.max(w,h)/1024)));
+  scApply(src,img.data,prep,piece,false,aim);
+  cx.putImageData(img,0,0);
+  /* 0.97: a master is the archive — one more generation of JPEG, but a light one */
+  const blob=cv.convertToBlob? await cv.convertToBlob({type:'image/jpeg',quality:0.97}) : await new Promise(r=>cv.toBlob(r,'image/jpeg',0.97));
+  if(!blob||!blob.size) throw new Error('the browser could not encode the corrected JPEG');
+  return blob;
+}
+async function scWrite(dir,name,data){
+  const fh=await dir.getFileHandle(name,{create:true}); const wr=await fh.createWritable(); await wr.write(data); await wr.close();
+  const back=await (await dir.getFileHandle(name)).getFile(); if(!back.size) throw new Error(name+' landed empty');
+  return back.size;
+}
+async function scHistory(piece,entry){
+  const d=await dirFor(S.masters,[piece.cls,piece.pid]);
+  const name=piece.pid+'__'+piece.fab+'__SETCOLOUR.json';
+  let rec={pid:piece.pid,fabric:piece.fab,history:[]};
+  try{ rec=JSON.parse(await (await (await d.getFileHandle(name)).getFile()).text()); if(!Array.isArray(rec.history)) rec.history=[]; }catch(e){}
+  rec.history.push(entry); await writeJSON(d,name,rec); return rec;
+}
+async function scSave(){
+  const todo=scDirtyCheck(); if(!todo.length) return;
+  const nFiles=todo.reduce((a,p)=>a+Object.values(p.files).filter(f=>f.include).length,0);
+  if(!confirm('Correct '+nFiles+' master photo(s) of '+todo.map(p=>p.pid).join(', ')+' to match '+SC.master.pid+'?\n\nEvery original is backed up first to Woodbun Assets/_backups/set-colour/, and “Undo last save” puts them back. The web copies are rebuilt from the corrected masters.')) return;
+  const stamp=new Date().toISOString().replace(/[:T]/g,'-').slice(0,16);
+  busyOn('Saving set colour — '+SC.set.name);
+  const done=[], failed=[];
+  let step=0; const total=nFiles+todo.length;
+  try{
+    for(const p of todo){
+      const mdir=await dirFor(S.masters,[p.cls,p.pid,p.fab]);
+      const bdir=await dirFor(S.assets,['_backups','set-colour',stamp,p.cls,p.pid,p.fab],true);
+      const files=[];
+      for(const f of Object.values(p.files)){ if(!f.include) continue;
+        busyStep(step,total,p.pid+' · '+f.name);
+        const cell=p.cells[f.view];
+        if(cell&&cell.room&&!(cell.aim&&cell.aim.rect)){ step++; continue; }   // a room photo is only ever saved aimed
+        try{
+          const orig=await f.master.getFile();
+          const bsz=await scWrite(bdir,f.name,orig);
+          if(bsz!==orig.size) throw new Error('backup of '+f.name+' landed at the wrong size — master NOT changed');
+          const out=await scProcessFull(orig,p,cell);
+          await scWrite(mdir,f.name,out);
+          files.push(f.name);
+        }catch(e){ failed.push(p.pid+' '+f.name+' ('+e.message+')'); }
+        step++; await new Promise(r=>setTimeout(r,0));
+      }
+      busyStep(step,total,p.pid+' · rebuilding web copies');
+      let web=null; try{ web=await compressSetToWeb(p.cls,p.pid,p.fab,mdir); }catch(e){ failed.push(p.pid+' web copies ('+e.message+')'); }
+      step++;
+      const entry={t:new Date().toISOString(),by:WHO||ROLE,action:'save',master:SC.master.pid,set:SC.set.name,params:Object.assign({},p.params),
+        sample:p.sample?{how:p.sample.how,view:p.sample.view,S:p.sample.S,T:p.sample.T}:null,
+        dE_before:p.dE0,dE_after:p.dE1,files,aims:Object.values(p.cells).filter(c=>c.aim).map(c=>({view:c.view,cS:c.aim.cS,box:c.aim.box,rect:c.aim.rect,preview_w:c.w})),backup:'_backups/set-colour/'+stamp+'/'+p.cls+'/'+p.pid+'/'+p.fab};
+      try{ await scHistory(p,entry); }catch(e){ failed.push(p.pid+' history ('+e.message+')'); }
+      done.push(p.pid+' ('+files.length+' photos'+(web?', '+web.ok.length+' web':'')+')');
+    }
+  } finally { busyOff(); }
+  logEvent('set.colour_saved',{set:SC.set.name,master:SC.master.pid,pieces:todo.map(p=>({pid:p.pid,fab:p.fab,params:p.params,dE_before:p.dE0,dE_after:p.dE1})),backup:stamp,failed});
+  MDL.items=null;
+  scSay('Saved: '+esc(done.join(', '))+'. Originals are in <b>_backups/set-colour/'+esc(stamp)+'</b>.'+(failed.length?' <b style="color:var(--terracotta)">Problems: '+esc(failed.join('; '))+'</b>':'')+
+    ' Next: the 3D models of these pieces were made from the OLD photos — re-check them in the 3D Lab, and the product photos on the website need re-uploading.', !!failed.length);
+  const keepMaster=SC.master.pid, name=SC.set.name;
+  await scLoadSet(name);
+  const m=SC.pieces.find(p=>p.pid===keepMaster); if(m&&m!==SC.master){ SC.master=m; $('scMaster').value=m.pid; await scBuild(); }
+}
+async function scUndo(){
+  if(!SC.set) return;
+  const plan=[];
+  for(const p of SC.pieces){
+    try{ const d=await dirFor(S.masters,[p.cls,p.pid]); const rec=JSON.parse(await (await (await d.getFileHandle(p.pid+'__'+p.fab+'__SETCOLOUR.json')).getFile()).text());
+      const last=[...rec.history].reverse().find(h=>h.action==='save'&&!h.undone); if(last) plan.push({p,last,rec}); }catch(e){}
+  }
+  if(!plan.length){ scSay('Nothing to undo for this set.'); return; }
+  const when=plan.map(x=>x.p.pid+' (saved '+x.last.t.slice(0,16).replace('T',' ')+')').join(', ');
+  if(!confirm('Put the backed-up original photos back for: '+when+'?')) return;
+  busyOn('Undo set colour — '+SC.set.name);
+  const failed=[];
+  try{
+    let i=0;
+    for(const {p,last} of plan){
+      busyStep(i++,plan.length,p.pid);
+      try{
+        const bdir=await dirFor(S.assets,last.backup.split('/'));
+        const mdir=await dirFor(S.masters,[p.cls,p.pid,p.fab]);
+        for(const n of last.files){ const f=await (await bdir.getFileHandle(n)).getFile(); await scWrite(mdir,n,f); }
+        await compressSetToWeb(p.cls,p.pid,p.fab,mdir);
+        last.undone=new Date().toISOString();
+        const d=await dirFor(S.masters,[p.cls,p.pid]); const name=p.pid+'__'+p.fab+'__SETCOLOUR.json';
+        const rec=JSON.parse(await (await (await d.getFileHandle(name)).getFile()).text());
+        const h=rec.history.find(x=>x.t===last.t&&x.action==='save'); if(h) h.undone=last.undone;
+        rec.history.push({t:last.undone,by:WHO||ROLE,action:'undo',of:last.t}); await writeJSON(d,name,rec);
+      }catch(e){ failed.push(p.pid+' ('+e.message+')'); }
+    }
+  } finally { busyOff(); }
+  logEvent('set.colour_undone',{set:SC.set.name,pieces:plan.map(x=>x.p.pid),failed});
+  scSay('Restored the original photos'+(failed.length?' — problems: '+esc(failed.join('; ')):'')+'.',!!failed.length);
+  await scLoadSet(SC.set.name);
+}
+{const s=$('scSet'); if(s) s.onchange=()=>scLoadSet(s.value).catch(e=>wbFail('Set colour',e));}
+{const s=$('scMaster'); if(s) s.onchange=async()=>{
+  if(SC.dirty&&!confirm('Changing the master resets the matches you have not saved. Continue?')){ s.value=SC.master.pid; return; }
+  SC.master=SC.pieces.find(p=>p.pid===s.value)||SC.master; SC.pieces.forEach(p=>{ p.params=scDefaults(); p.sample=null; p.dE0=p.dE1=null; p.marks=null; });
+  await scBuild(); };}
+{const s=$('scRows'); if(s) s.onchange=()=>scBuild();}
+{const b=$('scReload'); if(b) b.onclick=async()=>{ SC.sets=null; $('scSet').dataset.n=''; await scOpen(); if(SC.set) await scLoadSet(SC.set.name); };}
+{const b=$('scSave'); if(b) b.onclick=()=>scSave().catch(e=>{ busyOff(); wbFail('Set colour: save',e); });}
+{const b=$('scUndo'); if(b) b.onclick=()=>scUndo().catch(e=>{ busyOff(); wbFail('Set colour: undo',e); });}
+
 function setMode(m){
   S.mode=m;
-  ['mShoot','mEdit','mRev','mPanel','mMast','mUp','mDims','mLog','mModels','mLab'].forEach(b=>{const e=$(b); if(e) e.classList.remove('on');});
-  {const b=$({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast',uploads:'mUp',dims:'mDims',log:'mLog',models:'mModels',lab:'mLab'}[m]); if(b) b.classList.add('on');}
-  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters',uploads:'Uploads',dims:'Dims',log:'Activity',models:'Models',lab:'3D Lab'}[m];
+  ['mShoot','mEdit','mRev','mPanel','mMast','mUp','mDims','mLog','mModels','mLab','mSets'].forEach(b=>{const e=$(b); if(e) e.classList.remove('on');});
+  {const b=$({shoot:'mShoot',edit:'mEdit',review:'mRev',panel:'mPanel',masters:'mMast',uploads:'mUp',dims:'mDims',log:'mLog',models:'mModels',lab:'mLab',sets:'mSets'}[m]); if(b) b.classList.add('on');}
+  $('modeTag').textContent={shoot:'Shoot',edit:'Edit',review:'Review',panel:'Products',masters:'Masters',uploads:'Uploads',dims:'Dims',log:'Activity',models:'Models',lab:'3D Lab',sets:'Set colour'}[m];
   $('workArea').style.display=(m==='shoot'||m==='edit')?'block':'none';
   $('revArea').style.display=(m==='review')?'block':'none';
   $('panelArea').style.display=(m==='panel')?'block':'none';
@@ -3794,6 +4466,7 @@ function setMode(m){
   $('upArea').style.display=(m==='uploads')?'block':'none';
   {const a=$('modelsArea'); if(a) a.style.display=(m==='models')?'block':'none';}
   {const a=$('labArea'); if(a) a.style.display=(m==='lab')?'block':'none';}
+  {const a=$('scArea'); if(a) a.style.display=(m==='sets')?'block':'none';}
   const working=(m==='shoot'||m==='edit');
   document.querySelector('.card').style.display=working?'block':'none';
   /* v15 (C4): the Clear / Save bar belongs to the working screens only. It used to
@@ -3808,6 +4481,7 @@ function setMode(m){
   if(m==='log') buildLog();
   if(m==='models') buildModels();
   if(m==='lab'&&!MDL.lab.pid) labSay('Open a product from Models — the lab needs a raw GLB to work on.');
+  if(m==='sets') scOpen().catch(e=>wbFail('Set colour',e));
   if(m==='shoot'||m==='edit') render();
 }
 $('mShoot').onclick=()=>setMode('shoot');
@@ -3819,6 +4493,7 @@ $('mUp').onclick=()=>setMode('uploads');
 $('mDims').onclick=()=>setMode('dims');
 {const b=$('mModels'); if(b) b.onclick=()=>setMode('models');}
 {const b=$('mLab'); if(b) b.onclick=()=>setMode('lab');}
+{const b=$('mSets'); if(b) b.onclick=()=>setMode('sets');}
 $('cls').onchange=e=>{S.cls=e.target.value;S.files={};S.checks={};S.subs={};S.notes={};$('pidSel').value='';renderProducts();render();};
 /* v15 (C5): choosing a product must reload its variant list. Before, only the
    Products > Start path did that, which is why the variant box stuck on 'default'. */
