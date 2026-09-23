@@ -313,7 +313,9 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .rawrow .mono{font:600 11px var(--mono);flex:1 1 100%;color:var(--muted);overflow-wrap:anywhere}
 .dropz{flex:1;min-width:150px;border:2px dashed var(--border);border-radius:8px;padding:8px 10px;font:600 11px var(--mono);color:var(--muted);text-align:center;cursor:pointer}
 .dropz.hot{border-color:var(--teal);background:var(--ok-bg);color:var(--teal)}
-#labHost{min-height:200px} #labFrame{width:100%;height:calc(100vh - 200px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:#fff}
+/* v16.11 (23 Sep 2026): the lab uses the whole screen width — the 1200 px page column left most of a wide monitor empty */
+#labArea{width:calc(100vw - 40px);margin-left:calc(50% - 50vw + 20px)}
+#labHost{min-height:200px} #labFrame{width:100%;height:calc(100vh - 170px);min-height:640px;border:1px solid var(--border);border-radius:10px;background:#fff}
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .mcell{border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel);display:flex;flex-direction:column}
 .mcell img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;cursor:zoom-in;background:#fff}
@@ -709,7 +711,7 @@ const ROLE_HASHES={
       now says when it was approved and that its images are in Masters.
    Also: the per-slot "Reference" pictures (refs/<class>-NN.jpg) were never uploaded to
    the site and 404'd on every render; the block is gone. Orientation refs stay. */
-const APP_VERSION='v16.10';
+const APP_VERSION='v16.11';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
