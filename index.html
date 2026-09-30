@@ -771,7 +771,10 @@ const ROLE_HASHES={
 /* v16.12 (23 Sep 2026): Set colour — admin screen that matches the photos of the
    pieces of one set (Sable bed, side table, dresser, wardrobe) to a master piece,
    white background protected, originals backed up. See the SET COLOUR block. */
-const APP_VERSION='v16.12';
+/* v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
+   (Edit & upload tab, Start on every product) on top of its own screens (Variants,
+   Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
+const APP_VERSION='v16.13';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -803,7 +806,7 @@ function applyRole(r,who){
   $('adminBadge').textContent=WHO; $('adminBadge').style.display='inline-block';
   $('mShoot').classList.toggle('hide', r==='editor'||STAFF);
   $('mPanel').classList.toggle('hide', r==='shoot');
-  $('mEdit').classList.toggle('hide', r==='shoot'||STAFF);
+  $('mEdit').classList.toggle('hide', r==='shoot');   // v16.13: staff can edit & upload
   $('mRev').classList.toggle('hide', !ADMIN);
   $('mMast').classList.toggle('hide', !(ADMIN||STAFF));
   $('mUp').classList.toggle('hide', !(ADMIN||STAFF));
@@ -2423,8 +2426,8 @@ async function buildPanel(){
       (canRef?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button>'+(u?'<button class="small" data-a="refdel" title="Remove ref image">✕ ref</button>':'')+'<button class="small" data-a="vars">Variants</button><button class="small" data-a="dims">Dims</button>':'')+
       (ROLE==='editor'?'<button class="small" data-a="dimsv">Dims</button>':'')+
       (ADMIN?'<button class="small" data-a="done">✓ Complete</button>':'')+
-      (STAFF?'':'<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>');
-    if(!STAFF) d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
+      '<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>';   // v16.13: staff too
+    d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
     if(canRef){
       d.querySelector('[data-a=ref]').onclick=()=>uploadRef(p.id);
       if(u) d.querySelector('[data-a=refdel]').onclick=()=>removeRef(p.id);
