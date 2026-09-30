@@ -279,6 +279,16 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   .slot .note img.mkimg{width:100%;margin-top:6px;border:2px solid #b03030;border-radius:4px;display:block;cursor:zoom-in}
   #varOv{position:fixed;inset:0;background:rgba(43,33,24,.55);display:none;align-items:flex-start;justify-content:center;z-index:97;overflow:auto;padding:40px 16px}
 #varOv.on{display:flex}
+#npOv{position:fixed;inset:0;background:rgba(43,33,24,.55);display:none;align-items:flex-start;justify-content:center;z-index:97;overflow:auto;padding:40px 16px}
+#npOv.on{display:flex}
+.npnames{display:flex;flex-wrap:wrap;gap:6px}
+.npnames button{border:1px solid var(--border);background:var(--surface);border-radius:16px;padding:5px 12px;font-size:13px;cursor:pointer;text-transform:capitalize}
+.npnames button.on{background:#54A694;border-color:#54A694;color:#fff}
+.npforms{display:flex;flex-wrap:wrap;gap:8px 16px}
+.npforms label{display:flex;gap:6px;align-items:center;font-size:13px;width:auto;margin:0;text-transform:none;letter-spacing:0;color:inherit}
+.npforms input{width:auto;min-width:0;padding:0;margin:0;flex:none}
+.npids{font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.7}
+.npids .dup{color:var(--terracotta);text-decoration:line-through}
 .slot.missing{border-color:var(--terracotta);box-shadow:0 0 0 2px rgba(217,114,42,.35)}
 .bedonly{display:none}
 #doRO .rrow{font:600 13px var(--mono);padding:6px 0;border-bottom:1px dashed var(--border)}
@@ -480,7 +490,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 
 <div id="panelArea" style="display:none">
   <div class="card">
-    <div class="ptabs"><button id="ptNew" class="on">New products</button><button id="ptFix">Needs rework <span class="pill" id="fixPill" style="display:none">0</span></button></div>
+    <div class="ptabs"><button id="ptNew" class="on">New products</button><button id="ptFix">Needs rework <span class="pill" id="fixPill" style="display:none">0</span></button><button id="npBtn" class="act" style="margin-left:auto;padding:6px 14px;font-size:13px;display:none">+ New product</button></div>
     <div class="pfilter">
       <select id="pfClass"><option value="">All classes</option></select>
       <div class="pfsearch"><input id="pfQ" placeholder="Search product…" autocomplete="off"><div id="pfSug"></div></div>
@@ -606,6 +616,16 @@ img.zoomable,#prodHead img{cursor:zoom-in}
   </div>
   <div class="prow-list" id="vaList"></div>
   <div class="do-actions"><button class="small" id="vaClose">Close (Esc)</button></div>
+</div></div>
+<div id="npOv"><div class="dimscard">
+  <div class="do-head"><div><div class="ph-id">New product</div><div class="pi-meta">Pick a class, a name and the sizes. The ids are made for you.</div></div></div>
+  <div class="row"><div class="f"><label>Class</label><select id="npCls"></select></div></div>
+  <div id="npFamBox"><div class="fw-title">Match an existing bedroom family</div><div class="npnames" id="npFam"></div></div>
+  <div><div class="fw-title"><span id="npNewT">A new name</span> — not used by any product yet <button class="small" id="npShuffle" style="margin-left:8px">Shuffle</button></div><div class="npnames" id="npNames"></div></div>
+  <div class="row"><div class="f"><label>Or type your own name</label><input id="npOwn" placeholder="one word, e.g. luna" autocomplete="off"></div></div>
+  <div><div class="fw-title">Sizes / types</div><div class="npforms" id="npForms"></div></div>
+  <div><div class="fw-title">Will be created</div><div class="npids" id="npIds">Pick a name.</div></div>
+  <div class="do-actions"><button class="small" id="npClose">Cancel (Esc)</button><button class="act" id="npGo" disabled>Create</button></div>
 </div></div>
 <div id="dimsOv"><div class="dimscard">
   <div class="do-head"><div><div class="ph-id" id="doPid">—</div><div class="pi-meta" id="doMeta"></div></div><div class="thumbs" id="doThumbs"></div></div>
@@ -1100,7 +1120,7 @@ const ROLE_HASHES={
    v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.16';
+const APP_VERSION='v16.17';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1276,7 +1296,7 @@ function loadRows(R){
   S.finishes=(R.finishes||[]).map(r=>({code:clean(r.finish_code),name:(r.finish_name||'').toString().trim()}))
     .filter(f=>f.code);
   const rawP=(R.products||[]).map(r=>({class:clean(r.class),id:(r.product_id||'').toString().trim()})).filter(p=>p.id);
-  S.products=rawP.filter(p=>valid(p.id));
+  S.sheetProducts=rawP.filter(p=>valid(p.id)); mergeProducts();   // v16.17: plus products made in the tool
   S.badIds=rawP.filter(p=>!valid(p.id)).map(p=>p.id);
 
   fillClasses(); fillFabricDropdowns(); fillFinishes(); renderProducts(); render();
@@ -1666,6 +1686,7 @@ function setIntake(h){ S.root=h;
   const t=h.name+'  →  _INBOX / <class>/<product>/<variant>/';
   $('destPath').textContent=t; $('destPath').classList.remove('none');
   $('destPath2').textContent=t; $('destPath2').classList.remove('none');
+  loadLocalProducts().then(()=>{ renderProducts(); if(S.mode==='panel') buildPanel(); }).catch(()=>{});   // v16.17
 }
 function setMasters(h){ S.masters=h;
   const t=h.name+'  →  <class>/<product>/<variant>/';
@@ -2108,7 +2129,9 @@ async function workDir(id,f,create){
   try{ return {dir:await dirFor(S.root,['_INBOX',S.cls,id,f],!!create), rework:false}; }
   catch(e){ if(create) throw e; return {dir:null, rework:false}; }
 }
+let LE_RUN=0;
 async function loadExisting(){
+  const le=++LE_RUN;
   S.files={}; S.subs={}; S.ready=false; S.rework=false; S.notes={}; S.flagMsg=''; S.hist={};
   S.leftQueue=false; S.approvedInfo=null; S.ghosts=[];   // v16.10
   const id=pid(), f=fab();
@@ -2120,10 +2143,23 @@ async function loadExisting(){
        showing eleven empty slots to an editor who uploaded them last week. */
     if(S.masters){ try{
       const md=await dirFor(S.masters,[S.cls,id,f]);
-      let newest=0, n=0;
-      for(const fl of await listFiles(md)){ if(!/\.(jpe?g|png|webp)$/i.test(fl.name)) continue; n++;
+      let newest=0, n=0; const imgs=[];
+      for(const fl of await listFiles(md)){ if(!/\.(jpe?g|png|webp)$/i.test(fl.name)) continue; n++; imgs.push(fl);
         try{ newest=Math.max(newest,(await fileMeta(fl.handle)).lastModified||0); }catch(e){} }
+      if(le!==LE_RUN) return;
       if(n) S.approvedInfo={n:n,when:newest?new Date(newest).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''};
+      /* v16.17: show the approved images in their slots, read-only, straight from Masters */
+      const slow=[];
+      for(const fl of imgs){
+        const m=fl.name.match(/__(\d{2})([a-z]?)__/); if(!m) continue;
+        const key=m[1]+(m[2]||'');
+        if(m[2]){ const b=parseInt(m[1],10); S.subs[b]=Math.max(S.subs[b]||0, m[2].charCodeAt(0)-96); }
+        const t=fl.handle.thumb&&fl.handle.thumb(1200);
+        S.files[key]={existing:true,url:t||'',name:fl.name,locked:true,approved:true,h:fl.handle};
+        if(!t) slow.push(S.files[key]);
+      }
+      await pool(slow,4,async x=>{ x.url=URL.createObjectURL(await x.h.getFile()); });
+      if(le!==LE_RUN) return;
     }catch(e){} }
     render(); return;                                // nothing filed yet — nothing to create
   }
@@ -2390,6 +2426,7 @@ async function putSlot(key,file){
   const sk=slotKeys().find(x=>x.key===key); if(!sk) return;
   if(!S.root){alert('Choose your Intake folder first.');return;}
   if(!pid()){alert('Pick a product first.');return;}
+  if(S.approvedInfo){ $('status').className='status err'; $('status').textContent='This variant is approved and locked. Ask the owner to reopen it.'; return; }   // v16.17
   if(!fab()){alert('Pick the variant first — images are filed under it.');$('vSel').focus();return;}
   /* v15 (A5) */
   let vr;
@@ -2711,6 +2748,7 @@ async function buildPanel(){
       S.classes.filter(c=>c.active!=='n'&&CLASSES[c.cls]).map(c=>'<option value="'+c.cls+'">'+c.label+'</option>').join('');
     $('pfClass').value=PF.cls;
   }
+  {const nb=$('npBtn'); if(nb) nb.style.display=(ADMIN||STAFF)&&PTAB==='new'?'':'none';}   // v16.17
   const run=++PF.run;
   const st=S._statusCache||(S._statusCache=await readStatus());
   if(run!==PF.run) return;
@@ -2754,14 +2792,17 @@ async function buildPanel(){
     if(nR)badges+='<span class="bdg rev">'+nR+' in review</span>';
     if(nF)badges+='<span class="bdg rev">'+nF+' to fix</span>';
     if(nA)badges+='<span class="bdg ok">'+nA+' approved</span>';
+    if(p.local&&ADMIN)badges+='<span class="bdg">made in tool · not in sheet yet</span>';   // v16.17
     const canRef=ADMIN||STAFF;
     d.innerHTML=thumbHtml(p.id,u)+
       '<div class="grow"><div class="pi-id">'+p.id+'</div><div class="pi-meta">'+(p.class||'')+'</div><div class="badges">'+badges+'</div></div>'+
       (canRef?'<button class="small" data-a="ref">'+(u?'Change ref':'Add ref')+'</button>'+(u?'<button class="small" data-a="refdel" title="Remove ref image">✕ ref</button>':'')+'<button class="small" data-a="vars">Variants</button><button class="small" data-a="dims">Dims</button>':'')+
       (ROLE==='editor'?'<button class="small" data-a="dimsv">Dims</button>':'')+
       (ADMIN?'<button class="small" data-a="done">✓ Complete</button>':'')+
+      (nA&&S.masters?'<button class="small" data-a="mast">View in Masters</button>':'')+   // v16.17
       '<button class="act" style="padding:8px 14px;font-size:13px" data-a="start">Start</button>';   // v16.13: staff too
     d.querySelector('[data-a=start]').onclick=()=>startProduct(p);
+    {const mb=d.querySelector('[data-a=mast]'); if(mb) mb.onclick=()=>viewInMasters(p);}
     if(canRef){
       d.querySelector('[data-a=ref]').onclick=()=>uploadRef(p.id);
       if(u) d.querySelector('[data-a=refdel]').onclick=()=>removeRef(p.id);
@@ -2780,6 +2821,119 @@ async function buildPanel(){
   }
   wireZoom(L);
 }
+/* ---- v16.17: new products are made here, not typed into the sheet ----------------
+   A product made in the tool is saved as _PRODUCTS/<class>__<id>.json in the Intake folder
+   (the file name carries the class, so the list is read without opening every file).
+   The register shows sheet products plus these; once the sheet has the same id, the
+   sheet row wins and the file is only a record. */
+const NAME_BANK={
+  seating:['iris','lily','dahlia','lotus','jasmine','magnolia','peony','orchid','tulip','marigold','lavender','azalea',
+    'begonia','laurel','maple','willow','cedar','juniper','hazel','olive','fern','ivy','rowan','alder','linden','poppy',
+    'violet','heather','briar','acacia','myrtle','sorrel','yarrow','calla','primrose','hibiscus','gardenia','lilac',
+    'wisteria','protea','anemone','cosmos','verbena','saffron','basil','thyme','mimosa','amaryllis','bluebell','daisy',
+    'hyacinth','lupin','nerine','oleander','petunia','rosella','salvia','tamarind','vetiver','zelkova'],
+  bedroom:['luna','lyra','orion','altair','rigel','sirius','polaris','aurora','solstice','equinox','eclipse','comet',
+    'nova','stella','elara','rhea','phoebe','callisto','deneb','capella','mira','electra','maia','atlas','meridian',
+    'horizon','dawn','midnight','starling','moonstone','selene','hesper','vela','lumen','astrid','estelle','soleil',
+    'nyx','cielo','aster','andromeda','pegasus','draco','lynx','corvus','antares','spica','bellatrix','castor','pollux',
+    'zephyr','umbra','halcyon']
+};
+const BEDROOM=/^(bed|wardrobe|dresser|bedside)$/;
+const bankOf=c=>BEDROOM.test(c)?'bedroom':'seating';
+function formsOf(c){
+  const F={
+    sofa:[['corner','Corner (LHS + RHS)',n=>[n+'-corner-lhs',n+'-corner-rhs']],['lounger','Lounger (LHS + RHS)',n=>[n+'-lounger-lhs',n+'-lounger-rhs']],
+          ['3str','3-seater',n=>[n+'-3str']],['2str','2-seater',n=>[n+'-2str']],['1str','1-seater',n=>[n+'-1str']]],
+    bed:[['king','King',n=>[n+'-king']],['queen','Queen',n=>[n+'-queen']]],
+    wardrobe:[2,3,4,5].map(d=>[d+'door',d+'-door',n=>[n+'-wardrobe-'+d+'door']]),
+    dresser:[['dresser','Dresser',n=>[n+'-dresser']]],
+    bedside:[['bedside','Bedside',n=>[n+'-bedside']]]
+  };
+  return F[c]||[[c,c,n=>[n+'-'+c]]];
+}
+const baseName=id=>String(id).split('-')[0];
+function mergeProducts(){
+  const sheet=S.sheetProducts||[], have=new Set(sheet.map(p=>p.id));
+  S.products=sheet.concat((S.localProducts||[]).filter(p=>!have.has(p.id)));
+}
+async function loadLocalProducts(){
+  const out=[];
+  if(S.root){ try{ const d=await dirFor(S.root,['_PRODUCTS']);
+    for(const f of await listFiles(d)){ const m=f.name.match(/^([a-z0-9-]+)__([a-z0-9][a-z0-9-]*)\.json$/); if(m) out.push({class:m[1],id:m[2],local:true}); }
+  }catch(e){} }
+  S.localProducts=out; mergeProducts(); return out;
+}
+const NP={cls:'',name:'',forms:new Set(),pool:[]};
+function npUsed(){ return new Set((S.products||[]).map(p=>baseName(p.id))); }
+function npShuffle(){
+  const used=npUsed(), bank=NAME_BANK[bankOf(NP.cls)].filter(n=>!used.has(n));
+  for(let i=bank.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [bank[i],bank[j]]=[bank[j],bank[i]]; }
+  NP.pool=bank.slice(0,12); npDraw();
+}
+function npIds(){ const out=[]; if(!NP.name) return out;
+  for(const [k,,fn] of formsOf(NP.cls)) if(NP.forms.has(k)) fn(NP.name).forEach(id=>out.push(id)); return out; }
+function npDraw(){
+  const all=new Set((S.products||[]).map(p=>p.id));
+  /* bedroom pieces share a family name: celeste-king, celeste-wardrobe-4door, celeste-dresser */
+  const fam=BEDROOM.test(NP.cls)?[...new Set((S.products||[]).filter(p=>BEDROOM.test(p.class)).map(p=>baseName(p.id)))].sort():[];
+  $('npFamBox').style.display=fam.length?'':'none'; $('npNewT').textContent=fam.length?'Or a new name':'A new name';
+  const chip=n=>'<button data-n="'+esc(n)+'" class="'+(NP.name===n?'on':'')+'">'+esc(n)+'</button>';
+  $('npFam').innerHTML=fam.map(chip).join('');
+  $('npNames').innerHTML=NP.pool.length?NP.pool.map(chip).join(''):'<span class="pi-meta">The name bank for this class is used up — type your own.</span>';
+  document.querySelectorAll('#npFam button,#npNames button').forEach(b=>b.onclick=()=>{ NP.name=b.dataset.n; $('npOwn').value=''; npDraw(); });
+  $('npForms').innerHTML=formsOf(NP.cls).map(([k,l])=>'<label><input type="checkbox" data-f="'+k+'"'+(NP.forms.has(k)?' checked':'')+'> '+esc(l)+'</label>').join('');
+  document.querySelectorAll('#npForms input').forEach(c=>c.onchange=()=>{ c.checked?NP.forms.add(c.dataset.f):NP.forms.delete(c.dataset.f); npDraw(); });
+  const ids=npIds(), fresh=ids.filter(i=>!all.has(i));
+  $('npIds').innerHTML=!NP.name?'Pick a name.':!ids.length?'Tick at least one size / type.':
+    ids.map(i=>all.has(i)?'<div class="dup">'+esc(i)+' — already exists</div>':'<div>'+esc(i)+'</div>').join('');
+  $('npGo').disabled=!fresh.length;
+  $('npGo').textContent=fresh.length?'Create '+fresh.length+' product'+(fresh.length>1?'s':''):'Create';
+}
+function openNewProduct(){
+  if(!S.root){ alert('Choose your Intake folder first.'); return; }
+  const act=(S.classes||[]).filter(c=>c.active!=='n'&&CLASSES[c.cls]);
+  $('npCls').innerHTML=act.map(c=>'<option value="'+c.cls+'">'+esc(c.label)+'</option>').join('');
+  NP.cls=(PF.cls&&act.some(c=>c.cls===PF.cls))?PF.cls:(act[0]||{}).cls||'';
+  $('npCls').value=NP.cls; NP.name=''; NP.forms=new Set(); $('npOwn').value='';
+  npShuffle(); $('npOv').classList.add('on');
+}
+$('npCls').onchange=()=>{ NP.cls=$('npCls').value; NP.name=''; NP.forms=new Set(); npShuffle(); };
+$('npShuffle').onclick=npShuffle;
+$('npOwn').oninput=()=>{
+  const v=$('npOwn').value.trim().toLowerCase();
+  if(!v){ NP.name=''; npDraw(); return; }
+  if(!/^[a-z]+$/.test(v)){ NP.name=''; npDraw(); $('npIds').textContent='Letters only, one word, no spaces.'; return; }
+  const fam=BEDROOM.test(NP.cls)&&(S.products||[]).some(p=>BEDROOM.test(p.class)&&baseName(p.id)===v);
+  if(npUsed().has(v)&&!fam){ NP.name=''; npDraw(); $('npIds').textContent='“'+v+'” is already used by another product.'; return; }
+  NP.name=v; npDraw();
+};
+$('npClose').onclick=()=>$('npOv').classList.remove('on');
+$('npBtn').onclick=openNewProduct;
+$('npGo').onclick=async()=>{
+  const btn=$('npGo'); btn.disabled=true;
+  await loadLocalProducts();                                   // someone else may have just made one
+  const all=new Set((S.products||[]).map(p=>p.id));
+  const ids=npIds().filter(i=>!all.has(i)&&valid(i));
+  if(!ids.length){ npDraw(); return; }
+  const made=[], failed=[];
+  for(const id of ids){
+    const rec={id:id,class:NP.cls,name:NP.name,by:WHO||ROLE,at:new Date().toISOString(),in_sheet:false};
+    const res=await sharedWrite('_PRODUCTS',NP.cls+'__'+id+'.json',rec);
+    (res.ok.length?made:failed).push(id);
+  }
+  logEvent('product.create',{cls:NP.cls,name:NP.name,products:made,failed:failed.length?failed:undefined});
+  await loadLocalProducts(); renderProducts();
+  $('npOv').classList.remove('on');
+  $('status').className=failed.length?'status err':'status ok';
+  $('status').textContent=failed.length?'Could not create: '+failed.join(', '):'Created '+made.join(', ')+'. Add its variants next.';
+  PF.cls=NP.cls; if($('pfClass')) $('pfClass').value=NP.cls; PF.q=NP.name; if($('pfQ')) $('pfQ').value=NP.name;
+  S._statusCache=null; await buildPanel();
+  const first=(S.products||[]).find(p=>p.id===made[0]); if(first) openVars(first);
+};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&$('npOv').classList.contains('on')) $('npOv').classList.remove('on'); });
+/* v16.17: jump from Products straight to this product's approved images */
+let MB_WANT=null;
+function viewInMasters(p){ MB_WANT={cls:p.class||'',pid:p.id}; setMode('masters'); }
 function startProduct(p){
   if(p.class&&CLASSES[p.class]){S.cls=p.class;$('cls').value=p.class;renderProducts();}
   $('pidSel').value=p.id; S.notes={}; S.flagMsg=''; S.files={}; S.subs={}; S.ready=false;
@@ -2899,9 +3053,11 @@ async function buildMasters(quick){
     clsSel.innerHTML='<option value="">— all —</option>'+classes.map(c=>'<option>'+esc(c)+'</option>').join('');
     clsSel.dataset.n=String(classes.length);
   }
+  if(MB_WANT&&[...clsSel.options].some(o=>o.value===MB_WANT.cls)) clsSel.value=MB_WANT.cls;   // v16.17
   const cls=clsSel.value;
   const pids=[...new Set(items.filter(i=>!cls||i.cls===cls).map(i=>i.pid))].sort();
-  const keepPid=pids.includes(pidSel.value)?pidSel.value:'';
+  const want=MB_WANT&&MB_WANT.pid; MB_WANT=null;
+  const keepPid=pids.includes(want)?want:(pids.includes(pidSel.value)?pidSel.value:'');
   pidSel.innerHTML='<option value="">— pick a product —</option>'+pids.map(p=>'<option>'+esc(p)+'</option>').join('');
   pidSel.value=keepPid;
   const pid_=pidSel.value;
@@ -3447,7 +3603,9 @@ function render(){
         d.classList.add('lockedslot');
         h+='<div class="drop lockview" data-src="'+esc(src||'')+'" data-nm="'+esc(unlockedName(f.name||''))+'">'+(src?'<img src="'+src+'">':'accepted')+'</div>';
         h+='<div class="fname">'+esc(unlockedName(f.name||''))+'</div>';
-        h+='<div class="acclock"><b>Accepted</b></div>';
+        h+='<div class="acclock"><b>'+(f.approved?'Approved — in Masters':'Accepted')+'</b></div>';
+      } else if(S.approvedInfo){                                                    // v16.17: nothing can be added to an approved set
+        h+='<div class="drop lockview">not used</div>';
       } else {
         h+='<label class="drop" data-k="'+sk.key+'">'+(src?'<img src="'+src+'">':'Drop image or click')+'<input type="file" accept="image/*" data-k="'+sk.key+'"></label>';
         if(f) h+='<div class="fname">'+esc(f.name||'')+'</div><div class="tools"><button class="small" data-del="'+sk.key+'">✕ remove</button></div>';
@@ -3456,14 +3614,18 @@ function render(){
       h+='<label class="check"><input type="checkbox" data-k="'+sk.key+'" '+(S.checks[sk.key]?'checked':'')+'><span>Captured</span></label>';
     }
     const base=CLASSES[S.cls].slots.find(x=>x.i===sk.i);
-    if(base&&base.sub) h+='<div class="tools"><button class="small" data-add="'+sk.i+'">+ another '+pad(sk.i)+'</button></div>';
+    if(base&&base.sub&&!(S.mode==='edit'&&S.approvedInfo)) h+='<div class="tools"><button class="small" data-add="'+sk.i+'">+ another '+pad(sk.i)+'</button></div>';
     d.innerHTML=h; g.appendChild(d);
   }
   document.querySelectorAll('img.mkimg').forEach(im=>im.onclick=e=>{e.preventDefault();e.stopPropagation();
     lightbox(im.src,im.dataset.mk+' · marked by the reviewer','');});   // v15.12
   document.querySelectorAll('.drop input').forEach(i=>i.onchange=e=>{const f=e.target.files[0];if(f) putSlot(e.target.dataset.k,f);});
   document.querySelectorAll('[data-del]').forEach(b=>b.onclick=e=>{e.preventDefault();delSlot(b.dataset.del);});
-  document.querySelectorAll('.lockview').forEach(v=>v.onclick=()=>{ if(v.dataset.src) lightbox(v.dataset.src, v.dataset.nm, 'Accepted and locked. This is the file exactly as you uploaded it.'); });
+  document.querySelectorAll('.lockview').forEach(v=>v.onclick=()=>{ if(v.dataset.src) lightbox(v.dataset.src, v.dataset.nm, S.approvedInfo?'Approved. This is the master in 01_MASTERS — read-only.':'Accepted and locked. This is the file exactly as you uploaded it.'); });
+  /* v16.17: if Drive's preview will not load, fall back to the file itself */
+  document.querySelectorAll('.lockview img').forEach(im=>im.onerror=async()=>{ im.onerror=null;
+    const v=im.closest('.lockview'), f=Object.values(S.files).find(x=>x&&x.url===v.dataset.src);
+    if(f&&f.h){ try{ const u=URL.createObjectURL(await f.h.getFile()); f.url=u; im.src=u; v.dataset.src=u; }catch(e){} } });
   document.querySelectorAll('.drop:not(.lockview)').forEach(dz=>{
     dz.ondragover=e=>{e.preventDefault();dz.closest('.slot').classList.add('drag');};
     dz.ondragleave=()=>dz.closest('.slot').classList.remove('drag');
@@ -3491,7 +3653,7 @@ function progress(){
   else if(!ok){ st.textContent = 'Pick a class, a product, and a variant (staff defines the variant list).'; }
   else if(S.mode==='edit'&&S.approvedInfo){                                                   // v16.10
     st.className='status ok';
-    st.textContent='APPROVED'+(S.approvedInfo.when?' on '+S.approvedInfo.when:'')+' — its '+S.approvedInfo.n+' images are in Masters. Nothing to do here. Ask the owner to reopen it if a change is needed.'; }
+    st.textContent='APPROVED'+(S.approvedInfo.when?' on '+S.approvedInfo.when:'')+' — its '+S.approvedInfo.n+' images are shown below from Masters, read-only. Ask the owner to reopen it if a change is needed.'; }
   else if(S.mode==='edit'&&S.leftQueue){                                                      // v16.10
     st.className='status err';
     st.textContent='THIS SET HAS LEFT THE REVIEW QUEUE because you changed it. The owner will not see it until you click Send for review again.'; }
