@@ -287,6 +287,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 .npforms{display:flex;flex-wrap:wrap;gap:8px 16px}
 .npforms label{display:flex;gap:6px;align-items:center;font-size:13px;width:auto;margin:0;text-transform:none;letter-spacing:0;color:inherit}
 .npforms input{width:auto;min-width:0;padding:0;margin:0;flex:none}
+.npforms label.have{color:#8a8a8a}
 .npids{font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.7}
 .npids .dup{color:var(--terracotta);text-decoration:line-through}
 .slot.missing{border-color:var(--terracotta);box-shadow:0 0 0 2px rgba(217,114,42,.35)}
@@ -620,7 +621,7 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div id="npOv"><div class="dimscard">
   <div class="do-head"><div><div class="ph-id">New product</div><div class="pi-meta">Pick a class, a name and the sizes. The ids are made for you.</div></div></div>
   <div class="row"><div class="f"><label>Class</label><select id="npCls"></select></div></div>
-  <div id="npFamBox"><div class="fw-title">Match an existing bedroom family</div><div class="npnames" id="npFam"></div></div>
+  <div id="npFamBox"><div class="fw-title">Add to an existing family (same name, more pieces)</div><div class="npnames" id="npFam"></div></div>
   <div><div class="fw-title"><span id="npNewT">A new name</span> — not used by any product yet <button class="small" id="npShuffle" style="margin-left:8px">Shuffle</button></div><div class="npnames" id="npNames"></div></div>
   <div class="row"><div class="f"><label>Or type your own name</label><input id="npOwn" placeholder="one word, e.g. luna" autocomplete="off"></div></div>
   <div><div class="fw-title">Sizes / types</div><div class="npforms" id="npForms"></div></div>
@@ -1120,7 +1121,7 @@ const ROLE_HASHES={
    v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.17';
+const APP_VERSION='v16.18';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -2839,17 +2840,21 @@ const NAME_BANK={
     'zephyr','umbra','halcyon']
 };
 const BEDROOM=/^(bed|wardrobe|dresser|bedside)$/;
-const bankOf=c=>BEDROOM.test(c)?'bedroom':'seating';
+const isBedroom=c=>BEDROOM.test(c)||c==='bedroom-set';
+const bankOf=c=>isBedroom(c)?'bedroom':'seating';
 function formsOf(c){
   const F={
     sofa:[['corner','Corner (LHS + RHS)',n=>[n+'-corner-lhs',n+'-corner-rhs']],['lounger','Lounger (LHS + RHS)',n=>[n+'-lounger-lhs',n+'-lounger-rhs']],
           ['3str','3-seater',n=>[n+'-3str']],['2str','2-seater',n=>[n+'-2str']],['1str','1-seater',n=>[n+'-1str']]],
     bed:[['king','King',n=>[n+'-king']],['queen','Queen',n=>[n+'-queen']]],
-    wardrobe:[2,3,4,5].map(d=>[d+'door',d+'-door',n=>[n+'-wardrobe-'+d+'door']]),
+    wardrobe:[2,3,4,5,6].map(d=>[d+'door',d+'-door',n=>[n+'-wardrobe-'+d+'door']]),
     dresser:[['dresser','Dresser',n=>[n+'-dresser']]],
     bedside:[['bedside','Bedside',n=>[n+'-bedside']]]
   };
-  return F[c]||[[c,c,n=>[n+'-'+c]]];
+  /* v16.18: a whole bedroom set in one go — every piece gets the same family name */
+  if(c==='bedroom-set') return ['bed','wardrobe','dresser','bedside'].filter(k=>CLASSES[k]).flatMap(k=>F[k].map(([key,l,fn])=>
+    [k+':'+key,({bed:'Bed ',wardrobe:'Wardrobe '}[k]||'')+l,fn,k]));
+  return (F[c]||[[c,c,n=>[n+'-'+c]]]).map(x=>x.concat([c]));
 }
 const baseName=id=>String(id).split('-')[0];
 function mergeProducts(){
@@ -2871,28 +2876,35 @@ function npShuffle(){
   NP.pool=bank.slice(0,12); npDraw();
 }
 function npIds(){ const out=[]; if(!NP.name) return out;
-  for(const [k,,fn] of formsOf(NP.cls)) if(NP.forms.has(k)) fn(NP.name).forEach(id=>out.push(id)); return out; }
+  for(const [k,,fn,cls] of formsOf(NP.cls)) if(NP.forms.has(k)) fn(NP.name).forEach(id=>out.push({id:id,cls:cls})); return out; }
+/* v16.18: a family is the names already used in this class (sofas) or in any bedroom class,
+   so a missing piece can be added later under the same name: amber-2str next to amber-3str */
+function npFamilies(){ const bed=isBedroom(NP.cls);
+  return [...new Set((S.products||[]).filter(p=>bed?BEDROOM.test(p.class):p.class===NP.cls).map(p=>baseName(p.id)))].sort(); }
 function npDraw(){
   const all=new Set((S.products||[]).map(p=>p.id));
   /* bedroom pieces share a family name: celeste-king, celeste-wardrobe-4door, celeste-dresser */
-  const fam=BEDROOM.test(NP.cls)?[...new Set((S.products||[]).filter(p=>BEDROOM.test(p.class)).map(p=>baseName(p.id)))].sort():[];
+  const fam=npFamilies();
   $('npFamBox').style.display=fam.length?'':'none'; $('npNewT').textContent=fam.length?'Or a new name':'A new name';
   const chip=n=>'<button data-n="'+esc(n)+'" class="'+(NP.name===n?'on':'')+'">'+esc(n)+'</button>';
   $('npFam').innerHTML=fam.map(chip).join('');
   $('npNames').innerHTML=NP.pool.length?NP.pool.map(chip).join(''):'<span class="pi-meta">The name bank for this class is used up — type your own.</span>';
   document.querySelectorAll('#npFam button,#npNames button').forEach(b=>b.onclick=()=>{ NP.name=b.dataset.n; $('npOwn').value=''; npDraw(); });
-  $('npForms').innerHTML=formsOf(NP.cls).map(([k,l])=>'<label><input type="checkbox" data-f="'+k+'"'+(NP.forms.has(k)?' checked':'')+'> '+esc(l)+'</label>').join('');
+  $('npForms').innerHTML=formsOf(NP.cls).map(([k,l,fn])=>{
+    const have=NP.name&&fn(NP.name).every(i=>all.has(i)); if(have) NP.forms.delete(k);
+    return '<label'+(have?' class="have"':'')+'><input type="checkbox" data-f="'+k+'"'+(NP.forms.has(k)?' checked':'')+(have?' disabled':'')+'> '+esc(l)+(have?' ✓ exists':'')+'</label>'; }).join('');
   document.querySelectorAll('#npForms input').forEach(c=>c.onchange=()=>{ c.checked?NP.forms.add(c.dataset.f):NP.forms.delete(c.dataset.f); npDraw(); });
-  const ids=npIds(), fresh=ids.filter(i=>!all.has(i));
-  $('npIds').innerHTML=!NP.name?'Pick a name.':!ids.length?'Tick at least one size / type.':
-    ids.map(i=>all.has(i)?'<div class="dup">'+esc(i)+' — already exists</div>':'<div>'+esc(i)+'</div>').join('');
+  const ids=npIds(), fresh=ids.filter(x=>!all.has(x.id));
+  $('npIds').innerHTML=!NP.name?'Pick a name.':!ids.length?'Tick the sizes / types — tick several to make them together.':
+    ids.map(x=>all.has(x.id)?'<div class="dup">'+esc(x.id)+' — already exists</div>':'<div>'+esc(x.id)+(NP.cls==='bedroom-set'?' <span class="pi-meta">('+esc(x.cls)+')</span>':'')+'</div>').join('');
   $('npGo').disabled=!fresh.length;
   $('npGo').textContent=fresh.length?'Create '+fresh.length+' product'+(fresh.length>1?'s':''):'Create';
 }
 function openNewProduct(){
   if(!S.root){ alert('Choose your Intake folder first.'); return; }
   const act=(S.classes||[]).filter(c=>c.active!=='n'&&CLASSES[c.cls]);
-  $('npCls').innerHTML=act.map(c=>'<option value="'+c.cls+'">'+esc(c.label)+'</option>').join('');
+  $('npCls').innerHTML=act.map(c=>'<option value="'+c.cls+'">'+esc(c.label)+'</option>').join('')+
+    (act.some(c=>c.cls==='bed')?'<option value="bedroom-set">Bedroom set — bed, wardrobe, dresser, bedside</option>':'');   // v16.18
   NP.cls=(PF.cls&&act.some(c=>c.cls===PF.cls))?PF.cls:(act[0]||{}).cls||'';
   $('npCls').value=NP.cls; NP.name=''; NP.forms=new Set(); $('npOwn').value='';
   npShuffle(); $('npOv').classList.add('on');
@@ -2903,7 +2915,7 @@ $('npOwn').oninput=()=>{
   const v=$('npOwn').value.trim().toLowerCase();
   if(!v){ NP.name=''; npDraw(); return; }
   if(!/^[a-z]+$/.test(v)){ NP.name=''; npDraw(); $('npIds').textContent='Letters only, one word, no spaces.'; return; }
-  const fam=BEDROOM.test(NP.cls)&&(S.products||[]).some(p=>BEDROOM.test(p.class)&&baseName(p.id)===v);
+  const fam=npFamilies().includes(v);
   if(npUsed().has(v)&&!fam){ NP.name=''; npDraw(); $('npIds').textContent='“'+v+'” is already used by another product.'; return; }
   NP.name=v; npDraw();
 };
@@ -2913,20 +2925,20 @@ $('npGo').onclick=async()=>{
   const btn=$('npGo'); btn.disabled=true;
   await loadLocalProducts();                                   // someone else may have just made one
   const all=new Set((S.products||[]).map(p=>p.id));
-  const ids=npIds().filter(i=>!all.has(i)&&valid(i));
+  const ids=npIds().filter(x=>!all.has(x.id)&&valid(x.id));
   if(!ids.length){ npDraw(); return; }
   const made=[], failed=[];
-  for(const id of ids){
-    const rec={id:id,class:NP.cls,name:NP.name,by:WHO||ROLE,at:new Date().toISOString(),in_sheet:false};
-    const res=await sharedWrite('_PRODUCTS',NP.cls+'__'+id+'.json',rec);
-    (res.ok.length?made:failed).push(id);
+  for(const x of ids){
+    const rec={id:x.id,class:x.cls,name:NP.name,by:WHO||ROLE,at:new Date().toISOString(),in_sheet:false};
+    const res=await sharedWrite('_PRODUCTS',x.cls+'__'+x.id+'.json',rec);
+    (res.ok.length?made:failed).push(x.id);
   }
   logEvent('product.create',{cls:NP.cls,name:NP.name,products:made,failed:failed.length?failed:undefined});
   await loadLocalProducts(); renderProducts();
   $('npOv').classList.remove('on');
   $('status').className=failed.length?'status err':'status ok';
-  $('status').textContent=failed.length?'Could not create: '+failed.join(', '):'Created '+made.join(', ')+'. Add its variants next.';
-  PF.cls=NP.cls; if($('pfClass')) $('pfClass').value=NP.cls; PF.q=NP.name; if($('pfQ')) $('pfQ').value=NP.name;
+  $('status').textContent=failed.length?'Could not create: '+failed.join(', '):'Created '+made.join(', ')+'. Add variants to '+(made.length>1?'each of them':'it')+' next.';
+  PF.cls=NP.cls==='bedroom-set'?'':NP.cls; if($('pfClass')) $('pfClass').value=PF.cls; PF.q=NP.name; if($('pfQ')) $('pfQ').value=NP.name;
   S._statusCache=null; await buildPanel();
   const first=(S.products||[]).find(p=>p.id===made[0]); if(first) openVars(first);
 };
