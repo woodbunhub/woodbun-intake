@@ -690,7 +690,7 @@ const WBD=(()=>{
   const BASE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
   const Q='supportsAllDrives=true&includeItemsFromAllDrives=true';
   const FIELDS='id,name,mimeType,size,modifiedTime,shortcutDetails';
-  const TTL=20000;
+  const TTL=90000;
   let on=false; try{ on=localStorage.getItem(LS_ON)==='1'; }catch(e){}
   const clientId=()=>{ try{ return localStorage.getItem(LS_ID)||BUILT_IN_CLIENT_ID; }catch(e){ return BUILT_IN_CLIENT_ID; } };
   let tok=null, tokExp=0, tc=null, gisP=null, pend=null, who='';
@@ -761,16 +761,42 @@ const WBD=(()=>{
   const norm=f=>(f.mimeType===SHORT&&f.shortcutDetails)
     ? {id:f.shortcutDetails.targetId,name:f.name,mimeType:f.shortcutDetails.targetMimeType,modifiedTime:f.modifiedTime,size:f.size}
     : f;
-  const cache=new Map();
+  const cache=new Map(), inflight=new Map();
   const inval=id=>cache.delete(id);
+  const sortNew=a=>a.sort((x,y)=>(y.modifiedTime||'').localeCompare(x.modifiedTime||''));   // newest first wins on duplicate names
   async function list(id){
     const c=cache.get(id); if(c&&Date.now()-c.t<TTL) return c.items;
-    const out=[]; let pt='';
-    do{ const q=encodeURIComponent(`'${id}' in parents and trashed=false`);
-      const j=await api('GET',`${BASE}?q=${q}&fields=nextPageToken,files(${FIELDS})&pageSize=1000&${Q}`+(pt?'&pageToken='+encodeURIComponent(pt):''));
-      (j.files||[]).forEach(f=>out.push(norm(f))); pt=j.nextPageToken; }while(pt);
-    out.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''));   // newest first wins on duplicate names
-    cache.set(id,{t:Date.now(),items:out}); return out;
+    if(inflight.has(id)) return inflight.get(id);
+    const p=(async()=>{
+      const out=[]; let pt='';
+      do{ const q=encodeURIComponent(`'${id}' in parents and trashed=false`);
+        const j=await api('GET',`${BASE}?q=${q}&fields=nextPageToken,files(${FIELDS})&pageSize=1000&${Q}`+(pt?'&pageToken='+encodeURIComponent(pt):''));
+        (j.files||[]).forEach(f=>out.push(norm(f))); pt=j.nextPageToken; }while(pt);
+      sortNew(out); cache.set(id,{t:Date.now(),items:out});
+      prefetch(out.filter(f=>f.mimeType===FOLDER).map(f=>f.id),3);
+      return out; })();
+    inflight.set(id,p); try{ return await p; }finally{ inflight.delete(id); }
+  }
+  /* The tool walks folders one at a time. Over the internet that is hundreds of round trips,
+     so whenever a folder is listed we also list its sub-folders in the background, many
+     parents per request, a few levels deep. Later "list" calls then come from memory. */
+  async function prefetch(ids,depth){
+    ids=ids.filter(i=>!cache.has(i)&&!inflight.has(i)); if(!ids.length||depth<=0) return;
+    const chunks=[]; for(let i=0;i<ids.length;i+=30) chunks.push(ids.slice(i,i+30));
+    await Promise.all(chunks.map(async ch=>{
+      let done; const p=new Promise(r=>done=r); ch.forEach(i=>inflight.set(i,p.then(()=>(cache.get(i)||{items:[]}).items)));
+      const by={}; ch.forEach(i=>by[i]=[]);
+      try{ let pt='';
+        const q=encodeURIComponent('('+ch.map(i=>`'${i}' in parents`).join(' or ')+') and trashed=false');
+        do{ const j=await api('GET',`${BASE}?q=${q}&fields=nextPageToken,files(${FIELDS},parents)&pageSize=1000&${Q}`+(pt?'&pageToken='+encodeURIComponent(pt):''));
+          if((j.files||[]).some(f=>!f.parents)) throw new Error('no parents');
+          (j.files||[]).forEach(f=>{ const n=norm(f); (f.parents||[]).forEach(pa=>{ if(by[pa]) by[pa].push(n); }); }); pt=j.nextPageToken; }while(pt);
+        const t=Date.now(); ch.forEach(i=>cache.set(i,{t,items:sortNew(by[i])}));
+      }catch(e){ /* fall back to normal listing */ }
+      finally{ ch.forEach(i=>inflight.delete(i)); done(); }
+      const sub=[]; ch.forEach(i=>(by[i]||[]).forEach(f=>{ if(f.mimeType===FOLDER) sub.push(f.id); }));
+      prefetch(sub,depth-1);
+    }));
   }
   const locks=new Map();
   function acquire(key){ const prev=locks.get(key)||Promise.resolve(); let rel; const p=new Promise(r=>rel=r);
@@ -1063,12 +1089,14 @@ const ROLE_HASHES={
 /* v16.12 (23 Sep 2026): Set colour — admin screen that matches the photos of the
    pieces of one set (Sable bed, side table, dresser, wardrobe) to a master piece,
    white background protected, originals backed up. See the SET COLOUR block. */
-/* v16.14 (30 Sep 2026): Online Google Drive mode (see the WBD block) — for computers where the
+/* v16.15 (30 Sep 2026): online mode lists whole folder trees in a few batched requests; the
+   Products panel redraws when the register arrives.
+   v16.14 (30 Sep 2026): Online Google Drive mode (see the WBD block) — for computers where the
    Google Drive app's shared-folder shortcuts cannot be read by the browser.
    v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.14';
+const APP_VERSION='v16.15';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1248,6 +1276,7 @@ function loadRows(R){
   S.badIds=rawP.filter(p=>!valid(p.id)).map(p=>p.id);
 
   fillClasses(); fillFabricDropdowns(); fillFinishes(); renderProducts(); render();
+  if(S.mode==='panel'&&S.root&&typeof buildPanel==='function') buildPanel();   // v16.14: the list arrived after the panel was drawn
 }
 async function loadRegister(){
   let cfg={}; try{ cfg=await (await fetch('config.json')).json(); }catch(e){}
