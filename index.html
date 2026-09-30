@@ -689,7 +689,7 @@ const WBD=(()=>{
   const FOLDER='application/vnd.google-apps.folder', SHORT='application/vnd.google-apps.shortcut';
   const BASE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
   const Q='supportsAllDrives=true&includeItemsFromAllDrives=true';
-  const FIELDS='id,name,mimeType,size,modifiedTime,shortcutDetails';
+  const FIELDS='id,name,mimeType,size,modifiedTime,shortcutDetails,thumbnailLink';
   const TTL=90000;
   let on=false; try{ on=localStorage.getItem(LS_ON)==='1'; }catch(e){}
   const clientId=()=>{ try{ return localStorage.getItem(LS_ID)||BUILT_IN_CLIENT_ID; }catch(e){ return BUILT_IN_CLIENT_ID; } };
@@ -808,6 +808,10 @@ const WBD=(()=>{
 
   class DFile{
     constructor(f,parent){ this.kind='file'; this.name=f.name; this.id=f.id; this._f=f; this._p=parent; this.__drive=1; }
+    /* v16.16: date and size come with the folder listing, so no download is needed for them */
+    meta(){ return {lastModified:Date.parse(this._f.modifiedTime||'')||0, size:+(this._f.size||0)}; }
+    /* v16.16: Drive's own small preview of an image (null if Drive has not made one yet) */
+    thumb(sz){ const t=this._f.thumbnailLink; return t? t.replace(/=s\d+$/,'')+'=s'+(sz||800) : null; }
     async getFile(){
       const r=await api('GET',`${BASE}/${this.id}?alt=media&${Q}`,{raw:true});
       const b=await r.blob();
@@ -1096,7 +1100,7 @@ const ROLE_HASHES={
    v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.15';
+const APP_VERSION='v16.16';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1325,6 +1329,10 @@ async function dirFor(root,parts,create){let d=root;for(const p of parts){d=awai
 /* v16.10: Drive conflict forks — "name (1).jpg" — are skipped for images and remembered. */
 const GHOST_RE=/ \(\d+\)\.(jpe?g|png|webp)$/i;
 function noteGhost(name){ S.ghosts=S.ghosts||[]; if(S.ghosts.indexOf(name)<0) S.ghosts.push(name); }
+/* v16.16: file date/size without downloading it (online Drive), and a small worker pool */
+async function fileMeta(h){ if(h&&h.__drive&&h.meta) return h.meta(); const f=await h.getFile(); return {lastModified:f.lastModified||0,size:f.size||0}; }
+async function pool(list,n,fn){ let i=0; const w=async()=>{ while(i<list.length){ const k=i++; try{ await fn(list[k],k); }catch(e){} } };
+  await Promise.all(Array.from({length:Math.min(n,list.length)},w)); }
 async function listFiles(h){const o=[];for await(const [n,fh] of h.entries()){if(fh.kind!=='file')continue; if(GHOST_RE.test(n)){noteGhost(n);continue;} o.push({name:n,handle:fh});}return o;}
 /* v15.2 (D): the folder tree is read once and remembered. Every write path calls
    invalidateWalk(), and the Review screen has a Refresh button, so nothing here can
@@ -1751,7 +1759,7 @@ async function chooseMasters(){
     if(S.mode==='masters')buildMasters(); if(S.mode==='models')buildModels();
   }catch(e){}
 }
-['mSelCls','mSelPid','mSelFab'].forEach(id=>{ const el=$(id); if(el) el.onchange=()=>{ if(id==='mSelCls') $('mSelPid').value=''; buildMasters(); }; });
+['mSelCls','mSelPid','mSelFab'].forEach(id=>{ const el=$(id); if(el) el.onchange=()=>{ if(id==='mSelCls') $('mSelPid').value=''; buildMasters(true); }; });
 {const a=$('pickAssets'); if(a) a.onclick=chooseAssets;}
 {const a=$('pickAssets2'); if(a) a.onclick=chooseAssets;}
 $('pickMast').onclick=chooseMasters;
@@ -2114,7 +2122,7 @@ async function loadExisting(){
       const md=await dirFor(S.masters,[S.cls,id,f]);
       let newest=0, n=0;
       for(const fl of await listFiles(md)){ if(!/\.(jpe?g|png|webp)$/i.test(fl.name)) continue; n++;
-        try{ newest=Math.max(newest,(await fl.handle.getFile()).lastModified||0); }catch(e){} }
+        try{ newest=Math.max(newest,(await fileMeta(fl.handle)).lastModified||0); }catch(e){} }
       if(n) S.approvedInfo={n:n,when:newest?new Date(newest).toLocaleDateString('en-GB',{day:'numeric',month:'short'}):''};
     }catch(e){} }
     render(); return;                                // nothing filed yet — nothing to create
@@ -2781,9 +2789,10 @@ function startProduct(p){
 /* ---- masters viewer ---- */
 async function walkMasters(){
   const out=[]; if(!S.masters) return out;
-  for await(const [c,ch] of S.masters.entries()){ if(ch.kind!=='directory')continue;
-    for await(const [p,ph] of ch.entries()){ if(ph.kind!=='directory')continue;
-      for await(const [f,fh] of ph.entries()){ if(fh.kind!=='directory')continue; out.push({cls:c,pid:p,fab:f,handle:fh}); } } }
+  /* v16.16: read the class and product folders side by side, not one after another */
+  const kids=async h=>{ const r=[]; for await(const [n,c] of h.entries()) if(c.kind==='directory') r.push([n,c]); return r; };
+  await Promise.all((await kids(S.masters)).map(async([c,ch])=>
+    Promise.all((await kids(ch)).map(async([p,ph])=>{ for(const [f,fh] of await kids(ph)) out.push({cls:c,pid:p,fab:f,handle:fh}); }))));
   out.sort((a,b)=>a.pid.localeCompare(b.pid)||a.fab.localeCompare(b.fab));
   return out;
 }
@@ -2804,8 +2813,8 @@ async function webCoverage(items){
     const wf=(await listFiles(wd)).filter(f=>/\.jpg$/i.test(f.name));
     if(!wf.length){ out.missing.push(it); continue; }
     let mNew=0,wNew=0;
-    for(const f of mf) mNew=Math.max(mNew,(await f.handle.getFile()).lastModified||0);
-    for(const f of wf) wNew=Math.max(wNew,(await f.handle.getFile()).lastModified||0);
+    for(const m of await Promise.all(mf.map(f=>fileMeta(f.handle).catch(()=>({lastModified:0}))))) mNew=Math.max(mNew,m.lastModified||0);
+    for(const m of await Promise.all(wf.map(f=>fileMeta(f.handle).catch(()=>({lastModified:0}))))) wNew=Math.max(wNew,m.lastModified||0);
     const names=new Set(wf.map(f=>f.name));
     const short=mf.filter(f=>!names.has(unlockedName(f.name).replace(/\.(jpe?g|png|webp)$/i,'.jpg')));
     if(short.length){ out.missing.push(it); continue; }
@@ -2864,17 +2873,25 @@ function renderCoverage(cov,items){
       '<button class="act" id="covGo">Compress missing</button></div>';
   const b=$('covGo'); if(b) b.onclick=()=>repairWeb(need);
 }
-async function buildMasters(){
+async function buildMasters(quick){
   /* v15.1: browse by class + product, everything on one screen, names under each
      image. The old chevron-by-chevron viewer is still there — clicking an image
      opens it at that exact frame. */
+  /* v16.16: every build gets a number; an older build that finishes late stops instead
+     of painting its images over the newer choice. A dropdown change (quick) reuses the
+     folder tree read a moment ago instead of reading all of 01_MASTERS again. */
+  const run=++MB_RUN;
   const G=$('mgrid');
-  await readFlags(); renderFlags();
   if(!S.masters){ G.innerHTML='<div class="qempty">Choose the 01_MASTERS folder first (folder pickers above).</div>'; $('mCount').textContent=''; return; }
-  const items=await walkMasters();
+  let items=MASTERS_CACHE;
+  if(!quick||!items.length||Date.now()-MASTERS_AT>120000){
+    readFlags().then(renderFlags).catch(()=>{});
+    if(!items.length) G.innerHTML='<div class="qempty">Loading…</div>';
+    items=await walkMasters(); if(run!==MB_RUN) return;
+    MASTERS_CACHE=items; MASTERS_AT=Date.now();
+    if(items.length) webCoverage(items).then(c=>renderCoverage(c,items)).catch(e=>console.error('[woodbun] coverage',e));  // v15.16
+  }
   if(!items.length){ G.innerHTML='<div class="qempty">Nothing approved yet.</div>'; $('mCount').textContent=''; return; }
-  MASTERS_CACHE=items;
-  webCoverage(items).then(c=>renderCoverage(c,items)).catch(e=>console.error('[woodbun] coverage',e));  // v15.16
 
   const clsSel=$('mSelCls'), pidSel=$('mSelPid'), fabSel=$('mSelFab');
   const classes=[...new Set(items.map(i=>i.cls))].sort();
@@ -2901,34 +2918,55 @@ async function buildMasters(){
 
   const sel=items.filter(i=>i.pid===pid_&&(!cls||i.cls===cls)&&(!fabSel.value||i.fab===fabSel.value));
   G.innerHTML='<div class="qempty">Loading…</div>';
-  const frag=document.createDocumentFragment();
+  const isImg=f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name);
+  const lists=await Promise.all(sel.map(it=>listFiles(it.handle).then(fs=>fs.filter(isImg).sort((a,b)=>a.name.localeCompare(b.name)))));
+  if(run!==MB_RUN) return;
+  /* v16.16: the grid is drawn at once and each picture fills in as it arrives. On online
+     Drive the grid shows Drive's own preview (a few KB) instead of downloading every
+     full-size master first; the full file is still used when a preview is not available. */
+  const frag=document.createDocumentFragment(); const jobs=[];
   let total=0;
-  for(const it of sel){
+  sel.forEach((it,k)=>{
     if(sel.length>1){
       const hd=document.createElement('div'); hd.className='mgrouphd';
       hd.textContent=it.cls+' · '+it.pid+' · '+it.fab; frag.appendChild(hd);
     }
-    const files=(await listFiles(it.handle))
-      .filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name))
-      .sort((a,b)=>a.name.localeCompare(b.name));
-    for(const f of files){
+    for(const f of lists[k]){
       total++;
-      const file=await f.handle.getFile();
-      const url=URL.createObjectURL(file);
       const mm=f.name.match(/__(\d{2}[a-f]?)__([a-z-]+)\./i);
       const cell=document.createElement('div'); cell.className='mcell';
-      cell.innerHTML='<img src="'+url+'" alt="">'+
+      cell.innerHTML='<img alt="">'+
         '<div class="ms">'+(mm?esc(mm[1])+' &middot; '+esc(mm[2]):'&nbsp;')+'</div>'+
         '<div class="mn">'+esc(f.name)+'</div>';
-      cell.querySelector('img').onclick=()=>openViewerAt(it.pid,it.fab,f.name);
+      const img=cell.querySelector('img');
+      img.onclick=()=>openViewerAt(it.pid,it.fab,f.name);
+      jobs.push({img:img,f:f});
       frag.appendChild(cell);
     }
-  }
+  });
   G.innerHTML=''; G.appendChild(frag);
   $('mCount').textContent=total+' image(s)';
-  if(!total) G.innerHTML='<div class="qempty">No images in this selection.</div>';
+  if(!total){ G.innerHTML='<div class="qempty">No images in this selection.</div>'; return; }
+  const full=async j=>{
+    if(run!==MB_RUN) return;
+    const h=j.f.handle, key=(h.id||j.f.name)+'|'+((h._f&&h._f.modifiedTime)||'');
+    let url=MB_IMG.get(key);
+    if(!url){ const file=await h.getFile(); url=URL.createObjectURL(file); MB_IMG.set(key,url); }
+    if(run===MB_RUN) j.img.src=url;
+  };
+  const slow=[];
+  for(const j of jobs){
+    const t=j.f.handle.thumb&&j.f.handle.thumb(800);
+    if(!t){ slow.push(j); continue; }
+    let done=false; const fb=()=>{ if(done) return; done=true; full(j).catch(()=>{ j.img.alt='could not load'; }); };
+    j.img.referrerPolicy='no-referrer';
+    j.img.onerror=fb; j.img.onload=()=>{ done=true; };
+    setTimeout(()=>{ if(!j.img.complete||!j.img.naturalWidth) fb(); },12000);
+    j.img.src=t;
+  }
+  pool(slow,4,j=>full(j).catch(()=>{ j.img.alt='could not load'; }));
 }
-let MASTERS_CACHE=[];
+let MASTERS_CACHE=[], MASTERS_AT=0, MB_RUN=0; const MB_IMG=new Map();   // v16.16
 let MV={flat:[],i:0,open:false};
 /* v15.1: open the full viewer at one specific image rather than at a product. */
 async function openViewerAt(pidk,fabk,name){
@@ -2940,12 +2978,11 @@ async function openViewer(startPid){
   $('mvRecall').style.display=ADMIN?'':'none'; {const r=$('mvReopen'); if(r) r.style.display=ADMIN?'':'none';}
   $('mvDone').style.display=ADMIN?'':'none';
   {const g=$('mvFlag'); if(g) g.style.display=STAFF?'':'none';}   // v15.15: staff raise, never move
-  const items=await walkMasters();
+  const items=(MASTERS_CACHE.length&&Date.now()-MASTERS_AT<120000)?MASTERS_CACHE:await walkMasters();   // v16.16
   MV.flat=[];
-  for(const it of items){
-    const files=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name));
-    for(const f of files) MV.flat.push({it:it,fh:f.handle,name:f.name,url:null});
-  }
+  const lists=new Array(items.length);
+  await pool(items,6,async(it,k)=>{ lists[k]=(await listFiles(it.handle)).filter(f=>/\.(jpg|jpeg|png|webp)$/i.test(f.name)).sort((a,b)=>a.name.localeCompare(b.name)); });
+  items.forEach((it,k)=>{ for(const f of (lists[k]||[])) MV.flat.push({it:it,fh:f.handle,name:f.name,url:null}); });
   if(!MV.flat.length) return;
   MV.i=Math.max(0,MV.flat.findIndex(e=>e.it.pid===startPid));
   MV.open=true; $('mview').classList.add('on');
