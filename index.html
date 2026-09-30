@@ -669,6 +669,298 @@ img.zoomable,#prodHead img{cursor:zoom-in}
 <div id="lb"><img id="lbImg" alt=""><div class="cap" id="lbCap"></div><div class="esc">Click anywhere or press Esc to close</div></div>
 
 <script>
+/* v16.14 (30 Sep 2026): ONLINE GOOGLE DRIVE mode.
+   On some computers the Google Drive app presents shared folders (reached through a
+   Drive shortcut) in a way Chrome and Edge refuse to read: every read fails with
+   "An operation that depends on state cached in an interface object was made but the
+   state had changed since it was read from disk." This mode skips the Drive app: the
+   tool talks to Google Drive over the internet instead.
+
+   How it works: WBD makes objects that behave like the browser's folder/file handles
+   (getDirectoryHandle, getFileHandle, getFile, createWritable, entries, removeEntry),
+   but every call is a Google Drive API request. The rest of the tool is unchanged.
+   It is OFF by default and is switched on per browser ("Use online Google Drive" row
+   above the Intake folder). Computers where the Drive app works keep working as before.
+   Deleting in online mode moves the file to Drive's Trash (restorable), or, for files
+   the signed-in account does not own, removes it from the folder. */
+const WBD=(()=>{
+  const LS_ON='wb_online_drive', LS_ID='wb_gcid';
+  const BUILT_IN_CLIENT_ID='850978843546-6kt20jmp3dhse9am6jrj7m23sgm9sceh.apps.googleusercontent.com';            // filled in once the Google Cloud client exists
+  const FOLDER='application/vnd.google-apps.folder', SHORT='application/vnd.google-apps.shortcut';
+  const BASE='https://www.googleapis.com/drive/v3/files', UP='https://www.googleapis.com/upload/drive/v3/files';
+  const Q='supportsAllDrives=true&includeItemsFromAllDrives=true';
+  const FIELDS='id,name,mimeType,size,modifiedTime,shortcutDetails';
+  const TTL=20000;
+  let on=false; try{ on=localStorage.getItem(LS_ON)==='1'; }catch(e){}
+  const clientId=()=>{ try{ return localStorage.getItem(LS_ID)||BUILT_IN_CLIENT_ID; }catch(e){ return BUILT_IN_CLIENT_ID; } };
+  let tok=null, tokExp=0, tc=null, gisP=null, pend=null, who='';
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+  function loadGIS(){
+    if(gisP) return gisP;
+    gisP=new Promise((res,rej)=>{ if(window.google&&google.accounts&&google.accounts.oauth2) return res();
+      const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client';
+      s.onload=()=>res(); s.onerror=()=>{ gisP=null; rej(new Error('Could not load Google sign-in — check the internet connection')); };
+      document.head.appendChild(s); });
+    return gisP;
+  }
+  function requestToken(){
+    if(pend) return pend;
+    pend=new Promise((res,rej)=>{
+      if(!clientId()){ pend=null; return rej(new Error('Online Drive is not set up yet (no Google client ID).')); }
+      if(!tc) tc=google.accounts.oauth2.initTokenClient({client_id:clientId(),scope:'https://www.googleapis.com/auth/drive',callback:()=>{}});
+      tc.callback=r=>{ pend=null;
+        if(r&&r.access_token){ tok=r.access_token; tokExp=Date.now()+((+r.expires_in)||3600)*1000; hideBanner(); res(tok); }
+        else rej(new Error('Google sign-in was not completed')); };
+      tc.error_callback=e=>{ pend=null; rej(new Error('Google sign-in failed'+(e&&e.type?' ('+e.type+')':''))); };
+      tc.requestAccessToken({prompt:''});
+    });
+    return pend;
+  }
+  /* A token lasts about an hour. Renewing it opens a Google window, which browsers only
+     allow straight after a click — so outside a click we show a bar and wait for one. */
+  let waiters=[];
+  function showBanner(){
+    let b=document.getElementById('wbdBanner');
+    if(!b){ b=document.createElement('div'); b.id='wbdBanner';
+      b.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;background:#2B2118;color:#fff;padding:12px 18px;border-radius:10px;font:600 14px system-ui,sans-serif;box-shadow:0 8px 30px rgba(0,0,0,.3);cursor:pointer';
+      b.textContent='Google Drive needs you to sign in again — click here';
+      b.onclick=async()=>{ try{ await loadGIS(); await requestToken(); const w=waiters; waiters=[]; w.forEach(f=>f.res(tok)); }catch(e){ b.textContent='Sign-in failed — click to try again'; } };
+      document.body.appendChild(b); }
+    b.style.display='block';
+  }
+  function hideBanner(){ const b=document.getElementById('wbdBanner'); if(b) b.style.display='none'; }
+  async function ensureToken(force){
+    if(!force && tok && Date.now()<tokExp-60000) return tok;
+    await loadGIS();
+    const active=!navigator.userActivation||navigator.userActivation.isActive;
+    if(active){ try{ return await requestToken(); }catch(e){ if(!/popup|closed|not completed/i.test(e.message)) throw e; } }
+    showBanner();
+    return new Promise((res,rej)=>waiters.push({res,rej}));
+  }
+  async function api(method,url,opt={}){
+    let last;
+    for(let a=0;a<5;a++){
+      const t=await ensureToken(a>0&&last&&last.status===401);
+      let r;
+      try{ r=await fetch(url,{method,headers:Object.assign({Authorization:'Bearer '+t},opt.headers||{}),body:opt.body}); }
+      catch(e){ last=e; await sleep(400*2**a); continue; }
+      if(r.status===401){ tok=null; last={status:401}; continue; }
+      if(r.status===429||r.status>=500){ last={status:r.status}; await sleep(500*2**a); continue; }
+      if(!r.ok){ let m=''; try{ const j=await r.json(); m=(j.error&&j.error.message)||''; }catch(e){}
+        const err=new Error('Google Drive: '+(m||('HTTP '+r.status))); err.status=r.status; throw err; }
+      if(opt.raw) return r;
+      if(r.status===204) return null;
+      const txt=await r.text(); return txt?JSON.parse(txt):null;
+    }
+    const err=new Error('Google Drive did not respond — check the internet connection'); err.status=last&&last.status; throw err;
+  }
+  const MIME={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',gif:'image/gif',json:'application/json',
+    jsonl:'text/plain',txt:'text/plain',csv:'text/csv',glb:'model/gltf-binary',usdz:'model/vnd.usdz+zip',html:'text/html',pdf:'application/pdf'};
+  const mime=n=>MIME[(n.split('.').pop()||'').toLowerCase()]||'application/octet-stream';
+  const norm=f=>(f.mimeType===SHORT&&f.shortcutDetails)
+    ? {id:f.shortcutDetails.targetId,name:f.name,mimeType:f.shortcutDetails.targetMimeType,modifiedTime:f.modifiedTime,size:f.size}
+    : f;
+  const cache=new Map();
+  const inval=id=>cache.delete(id);
+  async function list(id){
+    const c=cache.get(id); if(c&&Date.now()-c.t<TTL) return c.items;
+    const out=[]; let pt='';
+    do{ const q=encodeURIComponent(`'${id}' in parents and trashed=false`);
+      const j=await api('GET',`${BASE}?q=${q}&fields=nextPageToken,files(${FIELDS})&pageSize=1000&${Q}`+(pt?'&pageToken='+encodeURIComponent(pt):''));
+      (j.files||[]).forEach(f=>out.push(norm(f))); pt=j.nextPageToken; }while(pt);
+    out.sort((a,b)=>(b.modifiedTime||'').localeCompare(a.modifiedTime||''));   // newest first wins on duplicate names
+    cache.set(id,{t:Date.now(),items:out}); return out;
+  }
+  const locks=new Map();
+  function acquire(key){ const prev=locks.get(key)||Promise.resolve(); let rel; const p=new Promise(r=>rel=r);
+    locks.set(key,prev.then(()=>p)); return prev.then(()=>()=>{ rel(); }); }
+  async function locked(key,fn){ const prev=locks.get(key)||Promise.resolve(); let rel; const p=new Promise(r=>rel=r);
+    locks.set(key,prev.then(()=>p)); await prev; try{ return await fn(); }finally{ rel(); if(locks.get(key)===p) locks.delete(key); } }
+  const nf=n=>new DOMException('"'+n+'" was not found in Google Drive','NotFoundError');
+  const J={'Content-Type':'application/json'};
+
+  class DFile{
+    constructor(f,parent){ this.kind='file'; this.name=f.name; this.id=f.id; this._f=f; this._p=parent; this.__drive=1; }
+    async getFile(){
+      const r=await api('GET',`${BASE}/${this.id}?alt=media&${Q}`,{raw:true});
+      const b=await r.blob();
+      return new File([b],this.name,{type:b.type&&b.type!=='application/octet-stream'?b.type:mime(this.name),lastModified:Date.parse(this._f.modifiedTime||'')||Date.now()});
+    }
+    async createWritable(o={}){
+      /* one writer per file at a time (the log is appended from several places at once);
+         the lock is released when the writer closes or aborts */
+      const release=await acquire('w:'+this.id);
+      try{ let init=null;
+        if(o.keepExistingData) init=new Uint8Array(await (await this.getFile()).arrayBuffer());   // always the live content
+        return new DWriter(this,init,release);
+      }catch(e){ release(); throw e; } }
+    async queryPermission(){ return 'granted'; } async requestPermission(){ return 'granted'; }
+    async isSameEntry(o){ return !!o&&o.id===this.id; }
+  }
+  async function upload(fh,blob){
+    const type=mime(fh.name); let f;
+    if(blob.size<=4*1024*1024){
+      f=await api('PATCH',`${UP}/${fh.id}?uploadType=media&fields=${FIELDS}&${Q}`,{body:blob,headers:{'Content-Type':type}});
+    }else{
+      const r=await api('PATCH',`${UP}/${fh.id}?uploadType=resumable&fields=${FIELDS}&${Q}`,{raw:true,body:'{}',headers:Object.assign({'X-Upload-Content-Type':type,'X-Upload-Content-Length':String(blob.size)},J)});
+      const loc=r.headers.get('Location');
+      if(loc) f=await api('PUT',loc,{body:blob,headers:{'Content-Type':type}});
+      else f=await api('PATCH',`${UP}/${fh.id}?uploadType=media&fields=${FIELDS}&${Q}`,{body:blob,headers:{'Content-Type':type}});   // fallback
+    }
+    if(f){ fh._f=Object.assign({},fh._f,f); }
+    if(fh._p) inval(fh._p.id);
+  }
+  class DWriter{
+    constructor(fh,init,release){ this.fh=fh; this.buf=init||new Uint8Array(0); this.pos=0; this.len=this.buf.length; this._rel=release||(()=>{}); }
+    async _bytes(d){
+      if(typeof d==='string') return new TextEncoder().encode(d);
+      if(d instanceof Blob) return new Uint8Array(await d.arrayBuffer());
+      if(d instanceof ArrayBuffer) return new Uint8Array(d);
+      if(ArrayBuffer.isView(d)) return new Uint8Array(d.buffer,d.byteOffset,d.byteLength);
+      throw new TypeError('Unsupported data');
+    }
+    _grow(n){ if(n>this.buf.length){ const nb=new Uint8Array(Math.max(n,this.buf.length*2)); nb.set(this.buf.subarray(0,this.len)); this.buf=nb; } }
+    async write(d){
+      if(d&&typeof d==='object'&&!(d instanceof Blob)&&!(d instanceof ArrayBuffer)&&!ArrayBuffer.isView(d)&&d.type){
+        if(d.type==='seek'){ this.pos=d.position; return; }
+        if(d.type==='truncate'){ return this.truncate(d.size); }
+        if(d.position!=null) this.pos=d.position; d=d.data;
+      }
+      const b=await this._bytes(d); const end=this.pos+b.length; this._grow(end);
+      this.buf.set(b,this.pos); this.pos=end; if(end>this.len) this.len=end;
+    }
+    async seek(p){ this.pos=p; }
+    async truncate(s){ this._grow(s); if(s>this.len) this.buf.fill(0,this.len,s); this.len=s; if(this.pos>s) this.pos=s; }
+    async close(){ try{ await upload(this.fh,new Blob([this.buf.subarray(0,this.len)],{type:mime(this.fh.name)})); }finally{ this._rel(); } }
+    async abort(){ this._rel(); }
+  }
+  class DDir{
+    constructor(id,name){ this.kind='directory'; this.id=id; this.name=name; this.__drive=1; }
+    async _find(name,dir){ const it=await list(this.id); return it.find(x=>x.name===name&&((x.mimeType===FOLDER)===dir))||null; }
+    async getDirectoryHandle(name,o={}){
+      return locked(this.id+'/'+name,async()=>{
+        let f=await this._find(name,true);
+        if(!f){
+          if(!o.create) throw nf(name);
+          f=await api('POST',`${BASE}?fields=${FIELDS}&${Q}`,{body:JSON.stringify({name,mimeType:FOLDER,parents:[this.id]}),headers:J});
+          inval(this.id);
+        }
+        return new DDir(f.id,f.name);
+      });
+    }
+    async getFileHandle(name,o={}){
+      return locked(this.id+'/'+name,async()=>{
+        let f=await this._find(name,false);
+        if(!f){
+          if(!o.create) throw nf(name);
+          f=await api('POST',`${BASE}?fields=${FIELDS}&${Q}`,{body:JSON.stringify({name,mimeType:mime(name),parents:[this.id]}),headers:J});
+          inval(this.id);
+        }
+        return new DFile(f,this);
+      });
+    }
+    async removeEntry(name,o={}){
+      const f=(await this._find(name,false))||(await this._find(name,true));
+      if(!f) throw nf(name);
+      if(f.mimeType===FOLDER&&!o.recursive){ const ch=await list(f.id); if(ch.length) throw new DOMException('Folder is not empty','InvalidModificationError'); }
+      try{ await api('PATCH',`${BASE}/${f.id}?${Q}`,{body:JSON.stringify({trashed:true}),headers:J}); }
+      catch(e){ if(e.status===403||e.status===404) await api('PATCH',`${BASE}/${f.id}?removeParents=${encodeURIComponent(this.id)}&${Q}`,{body:'{}',headers:J}); else throw e; }
+      inval(this.id); if(f.mimeType===FOLDER) inval(f.id);
+    }
+    async *entries(){ const it=await list(this.id); for(const f of it){ yield [f.name, f.mimeType===FOLDER? new DDir(f.id,f.name) : new DFile(f,this)]; } }
+    async *values(){ for await(const [,h] of this.entries()) yield h; }
+    async *keys(){ for await(const [n] of this.entries()) yield n; }
+    [Symbol.asyncIterator](){ return this.entries(); }
+    async queryPermission(){ return 'granted'; } async requestPermission(){ return 'granted'; }
+    async isSameEntry(o){ return !!o&&o.id===this.id; }
+    async resolve(){ return null; }
+  }
+
+  /* ---- folder chooser (replaces the Windows folder dialog in online mode) ---- */
+  function pick(){
+    return new Promise(async(resolve,reject)=>{
+      try{ await ensureToken(); }catch(e){ alert(e.message); return reject(new DOMException('cancelled','AbortError')); }
+      const ov=document.createElement('div');
+      ov.style.cssText='position:fixed;inset:0;background:rgba(43,33,24,.45);z-index:9998;display:flex;align-items:center;justify-content:center;font:15px system-ui,sans-serif';
+      ov.innerHTML='<div style="background:#fff;border-radius:14px;width:min(560px,94vw);max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)">'+
+        '<div style="padding:16px 18px 8px;font-weight:700;font-size:17px;color:#2B2118">Choose a Google Drive folder</div>'+
+        '<div style="padding:0 18px 8px;display:flex;gap:8px"><input id="wbdQ" placeholder="Search folders by name, e.g. Intake" style="flex:1;padding:9px 11px;border:1px solid #E2DFDA;border-radius:8px;font:15px system-ui"><button id="wbdGo" class="small">Search</button></div>'+
+        '<div id="wbdCrumb" style="padding:4px 18px 8px;color:#8A8177;font-size:13px"></div>'+
+        '<div id="wbdList" style="overflow:auto;flex:1;border-top:1px solid #eee;border-bottom:1px solid #eee;min-height:200px"></div>'+
+        '<div style="padding:12px 18px;display:flex;gap:10px;justify-content:flex-end"><button id="wbdCancel" class="small">Cancel</button><button id="wbdUse" class="act" disabled>Use this folder</button></div></div>';
+      document.body.appendChild(ov);
+      const L=ov.querySelector('#wbdList'), C=ov.querySelector('#wbdCrumb'), U=ov.querySelector('#wbdUse');
+      let trail=[], cur=null;
+      const done=(v,err)=>{ ov.remove(); err?reject(err):resolve(v); };
+      ov.querySelector('#wbdCancel').onclick=()=>done(null,new DOMException('cancelled','AbortError'));
+      function row(label,sub,fn){ const d=document.createElement('div');
+        d.style.cssText='padding:11px 18px;cursor:pointer;border-bottom:1px solid #f3f1ee;display:flex;justify-content:space-between;gap:10px';
+        d.innerHTML='<span>📁 '+label.replace(/</g,'&lt;')+'</span><span style="color:#8A8177;font-size:12px">'+(sub||'')+'</span>';
+        d.onmouseenter=()=>d.style.background='#F6F5F3'; d.onmouseleave=()=>d.style.background=''; d.onclick=fn; L.appendChild(d); }
+      function crumb(){ C.textContent=trail.length?trail.map(t=>t.name).join('  ›  '):'Start'; U.disabled=!cur; U.textContent=cur?('Use “'+cur.name+'”'):'Use this folder'; }
+      async function show(items,label){ L.innerHTML='<div style="padding:16px 18px;color:#8A8177">Loading…</div>';
+        try{ const it=await items(); L.innerHTML='';
+          if(trail.length) row('.. back','',()=>{ trail.pop(); const p=trail[trail.length-1]; p?open(p):home(); });
+          if(!it.length) L.insertAdjacentHTML('beforeend','<div style="padding:16px 18px;color:#8A8177">'+(label||'No folders here.')+'</div>');
+          it.forEach(f=>row(f.name,f.sub||'',()=>{ trail.push({id:f.id,name:f.name}); open({id:f.id,name:f.name}); }));
+        }catch(e){ L.innerHTML='<div style="padding:16px 18px;color:#b3261e">'+e.message+'</div>'; } }
+      async function query(q){ const out=[]; let pt='';
+        do{ const j=await api('GET',`${BASE}?q=${encodeURIComponent(q)}&fields=nextPageToken,files(${FIELDS})&pageSize=200&orderBy=name&${Q}`+(pt?'&pageToken='+encodeURIComponent(pt):''));
+          (j.files||[]).forEach(f=>{ const n=norm(f); if(n.mimeType===FOLDER) out.push(n); }); pt=j.nextPageToken; }while(pt&&out.length<400);
+        return out; }
+      function open(f){ cur=f; crumb(); show(async()=>(await list(f.id)).filter(x=>x.mimeType===FOLDER).sort((a,b)=>a.name.localeCompare(b.name))); }
+      function home(){ trail=[]; cur=null; crumb(); L.innerHTML='';
+        row('My Drive','',()=>{ trail=[{id:'root',name:'My Drive'}]; open({id:'root',name:'My Drive'}); });
+        row('Shared with me','',()=>{ trail=[{id:'__shared',name:'Shared with me'}]; cur=null; crumb();
+          show(()=>query("sharedWithMe=true and mimeType='"+FOLDER+"' and trashed=false")); }); }
+      const doSearch=()=>{ const v=ov.querySelector('#wbdQ').value.trim().replace(/'/g,"\\'"); if(!v) return home();
+        trail=[{id:'__search',name:'Search: '+v}]; cur=null; crumb();
+        show(()=>query("name contains '"+v+"' and (mimeType='"+FOLDER+"' or mimeType='"+SHORT+"') and trashed=false"),'No folders match.'); };
+      ov.querySelector('#wbdGo').onclick=doSearch;
+      ov.querySelector('#wbdQ').addEventListener('keydown',e=>{ if(e.key==='Enter') doSearch(); });
+      U.onclick=()=>{ if(cur&&cur.id!=='root'&&!cur.id.startsWith('__')) done(new DDir(cur.id,cur.name)); else if(cur&&cur.id==='root') done(new DDir('root','My Drive')); };
+      home();
+    });
+  }
+
+  /* ---- the switch, shown above each Intake folder row ---- */
+  function setOn(v){ try{ localStorage.setItem(LS_ON,v?'1':'0'); }catch(e){} location.reload(); }
+  function toggleRows(){
+    document.querySelectorAll('#pickDir,#pickDir2').forEach(b=>{
+      const dest=b.closest('.dest'); if(!dest||dest.previousElementSibling&&dest.previousElementSibling.classList.contains('wbdRow')) return;
+      const r=document.createElement('div'); r.className='dest wbdRow';
+      const state=on?'<b style="color:#3C7E70">ON</b> — folders open straight from Google Drive over the internet':'off — folders open through the Google Drive app on this computer';
+      r.innerHTML='<span class="reflabel">Online Drive</span><span class="path">'+state+'</span>'+
+        (on?'<button class="small wbdOff">Turn off</button>':'<button class="small wbdOn">Use online Google Drive</button>');
+      dest.parentNode.insertBefore(r,dest);
+      const a=r.querySelector('.wbdOn'), z=r.querySelector('.wbdOff');
+      if(a) a.onclick=()=>{ let id=clientId();
+        if(!id){ id=(prompt('Paste the Google client ID for Woodbun (ends with .apps.googleusercontent.com):')||'').trim();
+          if(!/\.apps\.googleusercontent\.com$/.test(id)) { if(id) alert('That does not look like a Google client ID.'); return; }
+          try{ localStorage.setItem(LS_ID,id); }catch(e){} }
+        setOn(true); };
+      if(z) z.onclick=()=>{ if(confirm('Turn off online Google Drive on this computer? You will need to choose the folders again.')) setOn(false); };
+    });
+  }
+  if(on){ const nativePick=window.showDirectoryPicker; window.__nativeShowDirectoryPicker=nativePick;
+    window.showDirectoryPicker=()=>pick();
+    loadGIS().catch(()=>{}); }
+  document.addEventListener('DOMContentLoaded',toggleRows);
+  if(document.readyState!=='loading') setTimeout(toggleRows,0);
+
+  /* remembered handles: store Drive folders as {id,name}; bring them back as DDir */
+  function pack(v){ return (v&&v.__drive&&v.kind==='directory')?{__wbdrive:1,id:v.id,name:v.name}:v; }
+  function unpack(v){
+    if(v&&v.__wbdrive) return on?new DDir(v.id,v.name):null;          // saved online folder; only valid in online mode
+    if(v&&on&&typeof v.queryPermission==='function'&&!v.__drive) return null;   // saved local folder is ignored in online mode
+    return v;
+  }
+  return {get on(){return on;}, DDir, DFile, pick, pack, unpack, list, api, ensureToken, _cache:cache};
+})();
+</script>
+
+<script>
 let CLASSES={};
 
 /* Built-in defaults — used when the register cannot be loaded (e.g. opened as a local file).
@@ -771,10 +1063,12 @@ const ROLE_HASHES={
 /* v16.12 (23 Sep 2026): Set colour — admin screen that matches the photos of the
    pieces of one set (Sable bed, side table, dresser, wardrobe) to a master piece,
    white background protected, originals backed up. See the SET COLOUR block. */
-/* v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
+/* v16.14 (30 Sep 2026): Online Google Drive mode (see the WBD block) — for computers where the
+   Google Drive app's shared-folder shortcuts cannot be read by the browser.
+   v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.13';
+const APP_VERSION='v16.14';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1246,7 +1540,10 @@ async function flagItem(it){              // _INBOX -> _INBOX/_rework (editor-vi
    raises the red bar once, and then stays quiet. */
 let LOG_WARNED=false;
 function logDay(d){ return d.toISOString().slice(0,10); }
-async function logEvent(action,detail){
+/* v16.14: appends are queued so two actions at the same moment cannot overwrite each other's line */
+let LOG_Q=Promise.resolve();
+function logEvent(action,detail){ const p=LOG_Q.then(()=>logEventNow(action,detail)); LOG_Q=p.catch(()=>{}); return p; }
+async function logEventNow(action,detail){
   try{
     if(!S.root) return;
     const now=new Date();
@@ -1320,8 +1617,8 @@ function histHTML(list){
 /* ---- v6: remembered folder handles (one-click reconnect) ---- */
 function hdb(){return new Promise((res,rej)=>{const r=indexedDB.open('wb_handles',1);
   r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
-async function hSet(k,v){try{const db=await hdb();await new Promise((res,rej)=>{const t=db.transaction('h','readwrite');t.objectStore('h').put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error);});}catch(e){}}
-async function hGet(k){try{const db=await hdb();return await new Promise((res)=>{const t=db.transaction('h','readonly');const rq=t.objectStore('h').get(k);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>res(null);});}catch(e){return null;}}
+async function hSet(k,v){try{const db=await hdb();await new Promise((res,rej)=>{const t=db.transaction('h','readwrite');t.objectStore('h').put(WBD.pack(v),k);t.oncomplete=res;t.onerror=()=>rej(t.error);});}catch(e){}}
+async function hGet(k){try{const db=await hdb();return await new Promise((res)=>{const t=db.transaction('h','readonly');const rq=t.objectStore('h').get(k);rq.onsuccess=()=>res(WBD.unpack(rq.result)||null);rq.onerror=()=>res(null);});}catch(e){return null;}}
 async function ensurePerm(h){ if(!h) return false;
   const o={mode:'readwrite'};
   if((await h.queryPermission(o))==='granted') return true;
