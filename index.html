@@ -574,6 +574,10 @@ img.zoomable,#prodHead img{cursor:zoom-in}
         <option value="">everything</option>
         <option value="image.">images only</option>
         <option value="set.">sets only (send, accept, approve, flag, recall)</option>
+        <option value="variants.">variants</option>
+        <option value="dims.">dims</option>
+        <option value="product.">new products</option>
+        <option value="ref.">reference images</option>
       </select></div>
       <div class="f grow"><label>&nbsp;</label><div class="code" id="logCount">—</div></div>
     </div>
@@ -1121,7 +1125,7 @@ const ROLE_HASHES={
    v16.13 (30 Sep 2026): the Staff login now does everything an Editor login does
    (Edit & upload tab, Start on every product) on top of its own screens (Variants,
    Dims, Refs, Masters, Uploads). Staff always works with the staff password. */
-const APP_VERSION='v16.18';
+const APP_VERSION='v16.19';
 let ROLE='', WHO='', ADMIN=false, STAFF=false;
 /* ===== v15 helpers =====
    esc()        : review comments are written by a human and must never be treated as markup.
@@ -1997,8 +2001,9 @@ async function uploadVariantRef(pid,variant,cb){
   i.click();
 }
 async function removeVariantRef(pid,variant){
-  await sharedDelete('_REFS',REF_EXTS.map(e=>vrefStem(pid,variant)+'.'+e));   // v15.15
+  const gone=await sharedDelete('_REFS',REF_EXTS.map(e=>vrefStem(pid,variant)+'.'+e));   // v15.15
   delete S.refCache['v:'+pid+'::'+variant];
+  logEvent('variant_ref.remove',{product:pid,variant:variant,files:gone});             // v16.19
 }
 async function variantHasUploads(cls,pid,variant){
   try{const d=await dirFor(S.root,['_INBOX',cls,pid,variant]);
@@ -2030,10 +2035,22 @@ async function uploadRef(pid){
 }
 /* ---- v11: staff-defined variants (_VARIANTS/<pid>.json) ---- */
 async function readVars(pid){ try{const d=await dirFor(S.root,['_VARIANTS']);const h=await d.getFileHandle(pid+'.json');return JSON.parse(await (await h.getFile()).text());}catch(e){return null;} }
+/* v16.19: the log keeps what changed, not only that something was saved */
+function flatObj(o,pre,out){ out=out||{}; pre=pre||'';
+  for(const k of Object.keys(o||{})){ if(/^(id|class|by|at|t|updated|updated_at|history|_file)$/.test(k)) continue;
+    const v=o[k]; if(v&&typeof v==='object'&&!Array.isArray(v)) flatObj(v,pre+k+'.',out); else out[pre+k]=Array.isArray(v)?JSON.stringify(v):v; }
+  return out; }
+function diffObj(a,b){ const A=flatObj(a), B=flatObj(b), ch={};
+  new Set(Object.keys(A).concat(Object.keys(B))).forEach(k=>{ if(String(A[k]??'')!==String(B[k]??'')) ch[k]=[A[k]??'',B[k]??'']; });
+  return ch; }
 async function writeVars(pid,obj){                                  // v15.15: every intake folder
+  const before=await readVars(pid);                                 // v16.19
   const res=await sharedWrite('_VARIANTS',pid+'.json',obj);
   fanoutNote(res,'Variants for '+pid);
-  logEvent('variants.save',{product:pid,folders:res.ok,failed:res.failed.length?res.failed:undefined});
+  const codes=v=>((v&&v.variants)||[]).map(x=>x.code);
+  const b0=codes(before), b1=codes(obj);
+  logEvent('variants.save',{product:pid,added:b1.filter(c=>!b0.includes(c)),removed:b0.filter(c=>!b1.includes(c)),
+    now:b1,folders:res.ok,failed:res.failed.length?res.failed:undefined});
   return res; }
 let VP=null;
 async function openVars(p){
@@ -2527,9 +2544,11 @@ async function readDimsFile(pid){
     return JSON.parse(await (await h.getFile()).text());}catch(e){return null;}
 }
 async function writeDimsFile(pid,obj){
+  const before=await readDimsFile(pid);                             // v16.19
   const res=await sharedWrite('_DIMS',pid+'.json',obj);             // v15.15: every intake folder
   fanoutNote(res,'Dims for '+pid);
-  logEvent('dims.save',{product:pid,status:obj&&obj.status,folders:res.ok,failed:res.failed.length?res.failed:undefined});
+  logEvent('dims.save',{product:pid,status:obj&&obj.status,changes:diffObj(before,obj),first:!before||undefined,
+    folders:res.ok,failed:res.failed.length?res.failed:undefined});
   return res;
 }
 async function listDimsFiles(){
@@ -2548,7 +2567,8 @@ function fx(id){ $('ft_'+id).textContent=ftin(parseFloat($(id).value)); }
 ['dw','dd','dh','sd','sh','f2b','plh'].forEach(id=>{$(id).addEventListener('input',()=>fx(id));});
 async function removeRef(pid){
   if(!confirm('Remove the reference image for '+pid+'?')) return;
-  await sharedDelete('_REFS',REF_EXTS.map(e=>pid+'.'+e));                    // v15.15
+  const gone=await sharedDelete('_REFS',REF_EXTS.map(e=>pid+'.'+e));                    // v15.15
+  logEvent('ref.remove',{product:pid,files:gone});                                          // v16.19
   delete S.refCache[pid]; buildPanel();
 }
 async function openDims(p,readonly){
@@ -3256,6 +3276,14 @@ function logLine(r){
   if(r.comments) bits.push(Object.keys(r.comments).map(k=>esc(k)+': “'+esc(r.comments[k])+'”').join(' · '));
   if(r.folder) bits.push(esc(r.folder));
   if(r.raw) bits.push('<span class="lw">'+esc(r.raw).slice(0,200)+'</span>');
+  /* v16.19: what changed */
+  if(r.added&&r.added.length) bits.push('<span style="color:#3C7E70">added '+esc(r.added.join(', '))+'</span>');
+  if(r.removed&&r.removed.length) bits.push('<span class="lw">removed '+esc(r.removed.join(', '))+'</span>');
+  if(r.now&&r.added&&!r.added.length&&!(r.removed||[]).length) bits.push('no change · '+esc(r.now.join(', ')||'none'));
+  if(r.first) bits.push('first entry');
+  if(r.changes){ const ks=Object.keys(r.changes);
+    bits.push(ks.length? ks.map(k=>esc(k.replace(/^(image_)?dims_m\./,(m,i)=>i?'image ':''))+': '+esc(String(r.changes[k][0]===''?'—':r.changes[k][0]))+' → '+esc(String(r.changes[k][1]===''?'—':r.changes[k][1]))).join(' · ') : 'no change'); }
+  if(r.products) bits.push('<b>'+esc([].concat(r.products).join(', '))+'</b>');
   const warn=r.warnings? '<div class="lw">'+esc([].concat(r.warnings).join(' '))+'</div>' : '';
   d.innerHTML='<span class="lt">'+esc(t)+esc(who)+'</span>'+
               '<span class="la '+esc(short)+'">'+esc(r.action||'?')+'</span>'+
